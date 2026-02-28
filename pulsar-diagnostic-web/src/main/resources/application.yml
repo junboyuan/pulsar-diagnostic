@@ -1,0 +1,54 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: pulsar-diagnostic-agent
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: gpt-4
+          temperature: 0.7
+      embedding:
+        options:
+          model: text-embedding-ada-002
+
+pulsar:
+  admin-url: ${PULSAR_ADMIN_URL:http://localhost:8080}
+  broker-url: ${PULSAR_BROKER_URL:pulsar://localhost:6650}
+  prometheus-url: ${PROMETHEUS_URL:http://localhost:9090}
+  cluster-name: ${PULSAR_CLUSTER_NAME:standalone}
+  connection-timeout-seconds: 30
+  request-timeout-seconds: 60
+  tls-enabled: false
+  auth-token: ${PULSAR_AUTH_TOKEN:}
+  log-paths:
+    broker: ${PULSAR_BROKER_LOGS:/var/log/pulsar/broker}
+    bookie: ${PULSAR_BOOKIE_LOGS:/var/log/pulsar/bookkeeper}
+    zookeeper: ${PULSAR_ZK_LOGS:/var/log/pulsar/zookeeper}
+    proxy: ${PULSAR_PROXY_LOGS:/var/log/pulsar/proxy}
+
+pulsar-diagnostic:
+  knowledge:
+    embedding-file: ${KNOWLEDGE_EMBEDDING_FILE:}
+    auto-load: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    root: INFO
+    com.pulsar.diagnostic: DEBUG
+    org.apache.pulsar: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
