@@ -1,45 +1,62 @@
 package com.pulsar.diagnostic.agent.tool;
 
+import com.pulsar.diagnostic.agent.mcp.McpClient;
 import com.pulsar.diagnostic.common.model.PulsarCluster;
 import com.pulsar.diagnostic.core.admin.PulsarAdminClient;
 import com.pulsar.diagnostic.core.health.ClusterHealth;
 import com.pulsar.diagnostic.core.health.HealthCheckService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.Map;
+
 /**
- * Tool for checking cluster status and health
+ * Tool for checking cluster status and health.
+ * Uses MCP server for cluster inspection.
  */
 @Component
 public class ClusterStatusTool {
 
     private static final Logger log = LoggerFactory.getLogger(ClusterStatusTool.class);
 
+    private final McpClient mcpClient;
     private final PulsarAdminClient pulsarAdminClient;
     private final HealthCheckService healthCheckService;
 
-    public ClusterStatusTool(PulsarAdminClient pulsarAdminClient,
+    public ClusterStatusTool(McpClient mcpClient,
+                             PulsarAdminClient pulsarAdminClient,
                              HealthCheckService healthCheckService) {
+        this.mcpClient = mcpClient;
         this.pulsarAdminClient = pulsarAdminClient;
         this.healthCheckService = healthCheckService;
     }
 
-    @Tool(description = "Get overall Pulsar cluster information including brokers, bookies, and health status")
+    /**
+     * Get overall Pulsar cluster information including brokers, bookies, and health status
+     */
     public String getClusterInfo() {
-        log.info("Tool: Getting cluster info");
+        log.info("Tool: Getting cluster info via MCP");
         try {
-            PulsarCluster cluster = pulsarAdminClient.getClusterInfo();
-            return formatClusterInfo(cluster);
+            // Use MCP inspect_cluster tool
+            return mcpClient.callToolSync("inspect_cluster",
+                    Map.of("components", List.of("all")));
         } catch (Exception e) {
-            log.error("Failed to get cluster info", e);
-            return "Error getting cluster info: " + e.getMessage();
+            log.error("Failed to get cluster info via MCP, falling back to direct call", e);
+            // Fallback to direct admin client
+            try {
+                PulsarCluster cluster = pulsarAdminClient.getClusterInfo();
+                return formatClusterInfo(cluster);
+            } catch (Exception ex) {
+                return "Error getting cluster info: " + ex.getMessage();
+            }
         }
     }
 
-    @Tool(description = "Perform a comprehensive health check on the Pulsar cluster")
+    /**
+     * Perform a comprehensive health check on the Pulsar cluster
+     */
     public String performHealthCheck() {
         log.info("Tool: Performing health check");
         try {
@@ -51,7 +68,9 @@ public class ClusterStatusTool {
         }
     }
 
-    @Tool(description = "Quick check if the Pulsar cluster is healthy")
+    /**
+     * Quick check if the Pulsar cluster is healthy
+     */
     public String isClusterHealthy() {
         log.info("Tool: Quick health check");
         try {
@@ -62,46 +81,61 @@ public class ClusterStatusTool {
         }
     }
 
-    @Tool(description = "Get list of all active brokers in the cluster")
+    /**
+     * Get list of all active brokers in the cluster
+     */
     public String getActiveBrokers() {
-        log.info("Tool: Getting active brokers");
+        log.info("Tool: Getting active brokers via MCP");
         try {
-            var brokers = pulsarAdminClient.getBrokers();
-            if (brokers.isEmpty()) {
-                return "No active brokers found in the cluster";
-            }
-
-            StringBuilder sb = new StringBuilder("Active Brokers:\n");
-            for (var broker : brokers) {
-                sb.append(String.format("- %s (Status: %s)\n",
-                        broker.getBrokerId(),
-                        broker.getHealthStatus()));
-            }
-            return sb.toString();
+            return mcpClient.callToolSync("inspect_cluster",
+                    Map.of("components", List.of("brokers")));
         } catch (Exception e) {
-            return "Error getting brokers: " + e.getMessage();
+            log.error("Failed to get brokers via MCP, falling back", e);
+            try {
+                var brokers = pulsarAdminClient.getBrokers();
+                if (brokers.isEmpty()) {
+                    return "No active brokers found in the cluster";
+                }
+                StringBuilder sb = new StringBuilder("Active Brokers:\n");
+                for (var broker : brokers) {
+                    sb.append(String.format("- %s (Status: %s)\n",
+                            broker.getBrokerId(),
+                            broker.getHealthStatus()));
+                }
+                return sb.toString();
+            } catch (Exception ex) {
+                return "Error getting brokers: " + ex.getMessage();
+            }
         }
     }
 
-    @Tool(description = "Get list of all bookies (BookKeeper nodes) in the cluster")
+    /**
+     * Get list of all bookies (BookKeeper nodes) in the cluster
+     */
     public String getBookies() {
-        log.info("Tool: Getting bookies");
+        log.info("Tool: Getting bookies via MCP");
         try {
-            var bookies = pulsarAdminClient.getBookies();
-            if (bookies.isEmpty()) {
-                return "No bookies found in the cluster";
-            }
-
-            StringBuilder sb = new StringBuilder("Bookies:\n");
-            for (var bookie : bookies) {
-                sb.append(String.format("- %s (Status: %s, Read-only: %s)\n",
-                        bookie.getBookieId(),
-                        bookie.getHealthStatus(),
-                        bookie.isReadOnly()));
-            }
-            return sb.toString();
+            return mcpClient.callToolSync("inspect_cluster",
+                    Map.of("components", List.of("bookies")));
         } catch (Exception e) {
-            return "Error getting bookies: " + e.getMessage();
+            log.error("Failed to get bookies via MCP, falling back", e);
+            try {
+                var bookies = pulsarAdminClient.getBookies();
+                if (bookies.isEmpty()) {
+                    return "No bookies found in the cluster";
+                }
+
+                StringBuilder sb = new StringBuilder("Bookies:\n");
+                for (var bookie : bookies) {
+                    sb.append(String.format("- %s (Status: %s, Read-only: %s)\n",
+                            bookie.getBookieId(),
+                            bookie.getHealthStatus(),
+                            bookie.isReadOnly()));
+                }
+                return sb.toString();
+            } catch (Exception ex) {
+                return "Error getting bookies: " + ex.getMessage();
+            }
         }
     }
 

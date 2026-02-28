@@ -152,7 +152,7 @@ public class PrometheusMetricsCollector {
             // Get backlog
             List<MetricData> backlog = queryMetric("sum(pulsar_backlog_size)");
             if (!backlog.isEmpty()) {
-                summary.setTotalBacklog(backlog.get(0).getValue());
+                summary.setTotalBacklog((long) backlog.get(0).getValue());
             }
 
             // Get connection count
@@ -322,7 +322,6 @@ public class PrometheusMetricsCollector {
 
     // Inner classes for metrics summary
 
-    @lombok.Data
     public static class ClusterMetricsSummary {
         private double messagesInRate;
         private double messagesOutRate;
@@ -332,9 +331,25 @@ public class PrometheusMetricsCollector {
         private long totalConnections;
         private long totalProducers;
         private long totalConsumers;
+
+        public double getMessagesInRate() { return messagesInRate; }
+        public void setMessagesInRate(double messagesInRate) { this.messagesInRate = messagesInRate; }
+        public double getMessagesOutRate() { return messagesOutRate; }
+        public void setMessagesOutRate(double messagesOutRate) { this.messagesOutRate = messagesOutRate; }
+        public double getBytesInRate() { return bytesInRate; }
+        public void setBytesInRate(double bytesInRate) { this.bytesInRate = bytesInRate; }
+        public double getBytesOutRate() { return bytesOutRate; }
+        public void setBytesOutRate(double bytesOutRate) { this.bytesOutRate = bytesOutRate; }
+        public long getTotalBacklog() { return totalBacklog; }
+        public void setTotalBacklog(long totalBacklog) { this.totalBacklog = totalBacklog; }
+        public long getTotalConnections() { return totalConnections; }
+        public void setTotalConnections(long totalConnections) { this.totalConnections = totalConnections; }
+        public long getTotalProducers() { return totalProducers; }
+        public void setTotalProducers(long totalProducers) { this.totalProducers = totalProducers; }
+        public long getTotalConsumers() { return totalConsumers; }
+        public void setTotalConsumers(long totalConsumers) { this.totalConsumers = totalConsumers; }
     }
 
-    @lombok.Data
     public static class BrokerMetrics {
         private String brokerId;
         private double cpuUsage;
@@ -344,5 +359,22 @@ public class PrometheusMetricsCollector {
         private long consumers;
         private double messagesInRate;
         private double messagesOutRate;
+
+        public String getBrokerId() { return brokerId; }
+        public void setBrokerId(String brokerId) { this.brokerId = brokerId; }
+        public double getCpuUsage() { return cpuUsage; }
+        public void setCpuUsage(double cpuUsage) { this.cpuUsage = cpuUsage; }
+        public double getMemoryUsage() { return memoryUsage; }
+        public void setMemoryUsage(double memoryUsage) { this.memoryUsage = memoryUsage; }
+        public long getConnections() { return connections; }
+        public void setConnections(long connections) { this.connections = connections; }
+        public long getProducers() { return producers; }
+        public void setProducers(long producers) { this.producers = producers; }
+        public long getConsumers() { return consumers; }
+        public void setConsumers(long consumers) { this.consumers = consumers; }
+        public double getMessagesInRate() { return messagesInRate; }
+        public void setMessagesInRate(double messagesInRate) { this.messagesInRate = messagesInRate; }
+        public double getMessagesOutRate() { return messagesOutRate; }
+        public void setMessagesOutRate(double messagesOutRate) { this.messagesOutRate = messagesOutRate; }
     }
 }

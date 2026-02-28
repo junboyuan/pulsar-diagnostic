@@ -68,12 +68,20 @@ public class PulsarConfig {
     /**
      * Log paths configuration
      */
-    @Data
     public static class LogPaths {
         private String broker = "/var/log/pulsar/broker";
         private String bookie = "/var/log/pulsar/bookkeeper";
         private String zookeeper = "/var/log/pulsar/zookeeper";
         private String proxy = "/var/log/pulsar/proxy";
+
+        public String getBroker() { return broker; }
+        public void setBroker(String broker) { this.broker = broker; }
+        public String getBookie() { return bookie; }
+        public void setBookie(String bookie) { this.bookie = bookie; }
+        public String getZookeeper() { return zookeeper; }
+        public void setZookeeper(String zookeeper) { this.zookeeper = zookeeper; }
+        public String getProxy() { return proxy; }
+        public void setProxy(String proxy) { this.proxy = proxy; }
     }
 
     /**

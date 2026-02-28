@@ -16,6 +16,14 @@ spring:
         options:
           model: text-embedding-ada-002
 
+# MCP Server Configuration
+mcp:
+  server-url: ${MCP_SERVER_URL:http://localhost:8000}
+  timeout: ${MCP_TIMEOUT:30s}
+  enabled: ${MCP_ENABLED:true}
+  max-retries: ${MCP_MAX_RETRIES:3}
+  retry-delay-ms: ${MCP_RETRY_DELAY_MS:1000}
+
 pulsar:
   admin-url: ${PULSAR_ADMIN_URL:http://localhost:8080}
   broker-url: ${PULSAR_BROKER_URL:pulsar://localhost:6650}

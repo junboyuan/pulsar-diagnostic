@@ -17,6 +17,14 @@ public class AgentException extends PulsarDiagnosticException {
         super(errorCode, message, 500);
     }
 
+    public AgentException(String errorCode, String message, int httpStatus) {
+        super(errorCode, message, httpStatus);
+    }
+
+    public AgentException(String errorCode, String message, Throwable cause) {
+        super(errorCode, message, 500, cause);
+    }
+
     public static AgentException toolExecutionFailed(String toolName, Throwable cause) {
         return new AgentException("TOOL_EXECUTION_FAILED",
                 "Failed to execute tool: " + toolName, cause);

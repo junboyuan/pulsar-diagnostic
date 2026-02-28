@@ -1,5 +1,6 @@
 package com.pulsar.diagnostic.agent.tool;
 
+import com.pulsar.diagnostic.agent.mcp.McpClient;
 import com.pulsar.diagnostic.common.enums.HealthStatus;
 import com.pulsar.diagnostic.common.model.InspectionReport;
 import com.pulsar.diagnostic.core.admin.PulsarAdminClient;
@@ -10,48 +11,61 @@ import com.pulsar.diagnostic.core.logs.LogAnalysisService;
 import com.pulsar.diagnostic.core.metrics.PrometheusMetricsCollector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * Tool for performing cluster inspections
+ * Tool for performing cluster inspections.
+ * Uses MCP server for cluster inspection.
  */
 @Component
 public class InspectionTool {
 
     private static final Logger log = LoggerFactory.getLogger(InspectionTool.class);
 
+    private final McpClient mcpClient;
     private final PulsarAdminClient pulsarAdminClient;
     private final HealthCheckService healthCheckService;
     private final PrometheusMetricsCollector metricsCollector;
     private final LogAnalysisService logAnalysisService;
 
-    public InspectionTool(PulsarAdminClient pulsarAdminClient,
+    public InspectionTool(McpClient mcpClient,
+                          PulsarAdminClient pulsarAdminClient,
                           HealthCheckService healthCheckService,
                           PrometheusMetricsCollector metricsCollector,
                           LogAnalysisService logAnalysisService) {
+        this.mcpClient = mcpClient;
         this.pulsarAdminClient = pulsarAdminClient;
         this.healthCheckService = healthCheckService;
         this.metricsCollector = metricsCollector;
         this.logAnalysisService = logAnalysisService;
     }
 
-    @Tool(description = "Perform a comprehensive cluster inspection covering all components")
+    /**
+     * Perform a comprehensive cluster inspection covering all components
+     */
     public String performFullInspection() {
-        log.info("Tool: Performing full cluster inspection");
-        return performInspection(null);
+        log.info("Tool: Performing full cluster inspection via MCP");
+        try {
+            // Use MCP diagnose_problem for comprehensive inspection
+            return mcpClient.callToolSync("diagnose_problem",
+                    Map.of("problem_type", "performance"));
+        } catch (Exception e) {
+            log.error("Failed to perform full inspection via MCP, falling back", e);
+            return performInspection(null);
+        }
     }
 
-    @Tool(description = "Perform cluster inspection focused on specific areas")
-    public String performInspection(
-            @ToolParam(description = "Focus areas: 'brokers', 'bookies', 'topics', 'performance', 'logs', or null for full inspection", required = false)
-            String focusArea) {
+    /**
+     * Perform cluster inspection focused on specific areas
+     * @param focusArea Focus areas: 'brokers', 'bookies', 'topics', 'performance', 'logs', or null for full inspection
+     */
+    public String performInspection(String focusArea) {
         log.info("Tool: Performing inspection with focus: {}", focusArea);
 
         List<InspectionReport.InspectionItem> items = new ArrayList<>();
@@ -88,48 +102,55 @@ public class InspectionTool {
         return formatInspectionReport(report);
     }
 
-    @Tool(description = "Quick health snapshot of the cluster")
+    /**
+     * Quick health snapshot of the cluster
+     */
     public String quickHealthSnapshot() {
-        log.info("Tool: Quick health snapshot");
-
+        log.info("Tool: Quick health snapshot via MCP");
         try {
-            ClusterHealth health = healthCheckService.performHealthCheck();
-
-            StringBuilder sb = new StringBuilder();
-            sb.append("=== Quick Health Snapshot ===\n");
-            sb.append(String.format("Time: %s\n\n", health.getCheckTime()));
-            sb.append(String.format("Overall Status: %s\n", health.getStatus()));
-            sb.append(String.format("Summary: %s\n\n", health.getSummary()));
-
-            // Count by status
-            long healthy = health.getComponents().stream()
-                    .filter(c -> c.getStatus() == HealthStatus.HEALTHY).count();
-            long warning = health.getComponents().stream()
-                    .filter(c -> c.getStatus() == HealthStatus.WARNING).count();
-            long critical = health.getComponents().stream()
-                    .filter(c -> c.getStatus() == HealthStatus.CRITICAL).count();
-
-            sb.append("Status Breakdown:\n");
-            sb.append(String.format("  ✅ Healthy: %d\n", healthy));
-            sb.append(String.format("  ⚠️ Warning: %d\n", warning));
-            sb.append(String.format("  ❌ Critical: %d\n", critical));
-
-            // Quick metrics
-            try {
-                var metrics = metricsCollector.getClusterMetricsSummary();
-                sb.append("\nKey Metrics:\n");
-                sb.append(String.format("  Messages In: %.2f/s\n", metrics.getMessagesInRate()));
-                sb.append(String.format("  Messages Out: %.2f/s\n", metrics.getMessagesOutRate()));
-                sb.append(String.format("  Total Backlog: %d\n", metrics.getTotalBacklog()));
-                sb.append(String.format("  Connections: %d\n", metrics.getTotalConnections()));
-            } catch (Exception e) {
-                sb.append("\nMetrics: Not available\n");
-            }
-
-            return sb.toString();
-
+            return mcpClient.callToolSync("inspect_cluster",
+                    Map.of("components", List.of("all")));
         } catch (Exception e) {
-            return "Error getting health snapshot: " + e.getMessage();
+            log.error("Failed to get health snapshot via MCP, falling back", e);
+            try {
+                ClusterHealth health = healthCheckService.performHealthCheck();
+
+                StringBuilder sb = new StringBuilder();
+                sb.append("=== Quick Health Snapshot ===\n");
+                sb.append(String.format("Time: %s\n\n", health.getCheckTime()));
+                sb.append(String.format("Overall Status: %s\n", health.getStatus()));
+                sb.append(String.format("Summary: %s\n\n", health.getSummary()));
+
+                // Count by status
+                long healthy = health.getComponents().stream()
+                        .filter(c -> c.getStatus() == HealthStatus.HEALTHY).count();
+                long warning = health.getComponents().stream()
+                        .filter(c -> c.getStatus() == HealthStatus.WARNING).count();
+                long critical = health.getComponents().stream()
+                        .filter(c -> c.getStatus() == HealthStatus.CRITICAL).count();
+
+                sb.append("Status Breakdown:\n");
+                sb.append(String.format("  ✅ Healthy: %d\n", healthy));
+                sb.append(String.format("  ⚠️ Warning: %d\n", warning));
+                sb.append(String.format("  ❌ Critical: %d\n", critical));
+
+                // Quick metrics
+                try {
+                    var metrics = metricsCollector.getClusterMetricsSummary();
+                    sb.append("\nKey Metrics:\n");
+                    sb.append(String.format("  Messages In: %.2f/s\n", metrics.getMessagesInRate()));
+                    sb.append(String.format("  Messages Out: %.2f/s\n", metrics.getMessagesOutRate()));
+                    sb.append(String.format("  Total Backlog: %d\n", metrics.getTotalBacklog()));
+                    sb.append(String.format("  Connections: %d\n", metrics.getTotalConnections()));
+                } catch (Exception ex) {
+                    sb.append("\nMetrics: Not available\n");
+                }
+
+                return sb.toString();
+
+            } catch (Exception ex) {
+                return "Error getting health snapshot: " + ex.getMessage();
+            }
         }
     }
 

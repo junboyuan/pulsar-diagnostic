@@ -1,5 +1,6 @@
 package com.pulsar.diagnostic.agent.tool;
 
+import com.pulsar.diagnostic.agent.mcp.McpClient;
 import com.pulsar.diagnostic.common.enums.DiagnosticType;
 import com.pulsar.diagnostic.common.enums.HealthStatus;
 import com.pulsar.diagnostic.common.enums.Severity;
@@ -13,41 +14,45 @@ import com.pulsar.diagnostic.core.logs.LogAnalysisService;
 import com.pulsar.diagnostic.core.metrics.PrometheusMetricsCollector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Tool for diagnosing Pulsar issues
+ * Tool for diagnosing Pulsar issues.
+ * Uses MCP server for comprehensive problem diagnosis.
  */
 @Component
 public class DiagnosticTool {
 
     private static final Logger log = LoggerFactory.getLogger(DiagnosticTool.class);
 
+    private final McpClient mcpClient;
     private final PulsarAdminClient pulsarAdminClient;
     private final HealthCheckService healthCheckService;
     private final PrometheusMetricsCollector metricsCollector;
     private final LogAnalysisService logAnalysisService;
 
-    public DiagnosticTool(PulsarAdminClient pulsarAdminClient,
+    public DiagnosticTool(McpClient mcpClient,
+                          PulsarAdminClient pulsarAdminClient,
                           HealthCheckService healthCheckService,
                           PrometheusMetricsCollector metricsCollector,
                           LogAnalysisService logAnalysisService) {
+        this.mcpClient = mcpClient;
         this.pulsarAdminClient = pulsarAdminClient;
         this.healthCheckService = healthCheckService;
         this.metricsCollector = metricsCollector;
         this.logAnalysisService = logAnalysisService;
     }
 
-    @Tool(description = "Diagnose message backlog issues for a topic or namespace")
-    public String diagnoseBacklogIssue(
-            @ToolParam(description = "Topic or namespace to diagnose") String resource,
-            @ToolParam(description = "Resource type: 'topic' or 'namespace'", required = false)
-            String resourceType) {
+    /**
+     * Diagnose message backlog issues for a topic or namespace
+     * @param resource Topic or namespace to diagnose
+     * @param resourceType Resource type: 'topic' or 'namespace'
+     */
+    public String diagnoseBacklogIssue(String resource, String resourceType) {
         log.info("Tool: Diagnosing backlog issue for: {}", resource);
 
         try {
@@ -66,7 +71,7 @@ public class DiagnosticTool {
                                 .description(String.format("Topic '%s' has backlog of %d bytes (%d messages)",
                                         resource, topic.getBacklogSize(), topic.getMessageCount()))
                                 .affectedResource(resource)
-                                .symptom(List.of("Growing message backlog", "Consumer lag increasing"))
+                                .symptoms(List.of("Growing message backlog", "Consumer lag increasing"))
                                 .possibleCauses(List.of(
                                         "Consumer is not running or stuck",
                                         "Consumer processing too slow",
@@ -103,7 +108,9 @@ public class DiagnosticTool {
         }
     }
 
-    @Tool(description = "Diagnose connection issues in the cluster")
+    /**
+     * Diagnose connection issues in the cluster
+     */
     public String diagnoseConnectionIssues() {
         log.info("Tool: Diagnosing connection issues");
 
@@ -165,7 +172,9 @@ public class DiagnosticTool {
         }
     }
 
-    @Tool(description = "Diagnose performance issues in the cluster")
+    /**
+     * Diagnose performance issues in the cluster
+     */
     public String diagnosePerformanceIssues() {
         log.info("Tool: Diagnosing performance issues");
 
@@ -235,30 +244,40 @@ public class DiagnosticTool {
         }
     }
 
-    @Tool(description = "Run comprehensive diagnostic on the entire cluster")
+    /**
+     * Run comprehensive diagnostic on the entire cluster
+     */
     public String runComprehensiveDiagnostic() {
-        log.info("Tool: Running comprehensive diagnostic");
+        log.info("Tool: Running comprehensive diagnostic via MCP");
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("=== Comprehensive Cluster Diagnostic ===\n\n");
-
-        // Run all diagnostics
-        sb.append(diagnoseConnectionIssues()).append("\n");
-        sb.append(diagnosePerformanceIssues()).append("\n");
-
-        // Add cluster health summary
         try {
-            ClusterHealth health = healthCheckService.performHealthCheck();
-            sb.append("\n=== Cluster Health Summary ===\n");
-            sb.append(String.format("Overall Status: %s\n", health.getStatus()));
-            sb.append(String.format("Components Checked: %d\n", health.getComponents().size()));
-            sb.append(String.format("Healthy: %d, Issues: %d\n",
-                    health.getHealthyCount(), health.getUnhealthyCount()));
+            // Use MCP diagnose_problem tool for comprehensive diagnosis
+            return mcpClient.callToolSync("diagnose_problem",
+                    Map.of("problem_type", "unknown"));
         } catch (Exception e) {
-            sb.append("Could not get health summary: ").append(e.getMessage()).append("\n");
-        }
+            log.error("Failed to run comprehensive diagnostic via MCP, falling back", e);
 
-        return sb.toString();
+            StringBuilder sb = new StringBuilder();
+            sb.append("=== Comprehensive Cluster Diagnostic ===\n\n");
+
+            // Run all diagnostics
+            sb.append(diagnoseConnectionIssues()).append("\n");
+            sb.append(diagnosePerformanceIssues()).append("\n");
+
+            // Add cluster health summary
+            try {
+                ClusterHealth health = healthCheckService.performHealthCheck();
+                sb.append("\n=== Cluster Health Summary ===\n");
+                sb.append(String.format("Overall Status: %s\n", health.getStatus()));
+                sb.append(String.format("Components Checked: %d\n", health.getComponents().size()));
+                sb.append(String.format("Healthy: %d, Issues: %d\n",
+                        health.getHealthyCount(), health.getUnhealthyCount()));
+            } catch (Exception ex) {
+                sb.append("Could not get health summary: ").append(ex.getMessage()).append("\n");
+            }
+
+            return sb.toString();
+        }
     }
 
     private String formatDiagnosticResults(List<DiagnosticResult> results, String title) {

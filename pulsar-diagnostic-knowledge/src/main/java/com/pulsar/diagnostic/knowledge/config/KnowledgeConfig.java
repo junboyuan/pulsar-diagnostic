@@ -1,5 +1,6 @@
 package com.pulsar.diagnostic.knowledge.config;
 
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,7 +15,7 @@ public class KnowledgeConfig {
      * Create SimpleVectorStore bean
      */
     @Bean
-    public SimpleVectorStore simpleVectorStore() {
-        return new SimpleVectorStore();
+    public SimpleVectorStore simpleVectorStore(EmbeddingModel embeddingModel) {
+        return new SimpleVectorStore(embeddingModel);
     }
 }

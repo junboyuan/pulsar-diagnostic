@@ -1,74 +1,93 @@
 package com.pulsar.diagnostic.agent.tool;
 
+import com.pulsar.diagnostic.agent.mcp.McpClient;
 import com.pulsar.diagnostic.common.model.LogEntry;
 import com.pulsar.diagnostic.core.logs.LogAnalysisService;
 import com.pulsar.diagnostic.core.logs.LogFileReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * Tool for analyzing Pulsar logs
+ * Tool for analyzing Pulsar logs.
+ * Uses MCP server for log analysis.
  */
 @Component
 public class LogAnalysisTool {
 
     private static final Logger log = LoggerFactory.getLogger(LogAnalysisTool.class);
 
+    private final McpClient mcpClient;
     private final LogAnalysisService logAnalysisService;
     private final LogFileReader logFileReader;
 
-    public LogAnalysisTool(LogAnalysisService logAnalysisService,
+    public LogAnalysisTool(McpClient mcpClient,
+                           LogAnalysisService logAnalysisService,
                            LogFileReader logFileReader) {
+        this.mcpClient = mcpClient;
         this.logAnalysisService = logAnalysisService;
         this.logFileReader = logFileReader;
     }
 
-    @Tool(description = "Analyze broker logs for errors and warnings")
-    public String analyzeBrokerLogs(
-            @ToolParam(description = "Maximum number of lines to analyze", required = false)
-            Integer maxLines) {
-        log.info("Tool: Analyzing broker logs");
+    /**
+     * Analyze broker logs for errors and warnings
+     * @param maxLines Maximum number of lines to analyze
+     */
+    public String analyzeBrokerLogs(Integer maxLines) {
+        log.info("Tool: Analyzing broker logs via MCP");
         int lines = maxLines != null ? maxLines : 1000;
 
         try {
-            LogAnalysisService.LogAnalysisResult result =
-                    logAnalysisService.analyzeBrokerLogs(lines);
-
-            return formatAnalysisResult(result, "Broker");
+            return mcpClient.callToolSync("analyze_logs",
+                    Map.of("component", "broker",
+                           "max_lines", lines));
         } catch (Exception e) {
-            log.error("Failed to analyze broker logs", e);
-            return "Error analyzing broker logs: " + e.getMessage();
+            log.error("Failed to analyze broker logs via MCP, falling back", e);
+            try {
+                LogAnalysisService.LogAnalysisResult result =
+                        logAnalysisService.analyzeBrokerLogs(lines);
+
+                return formatAnalysisResult(result, "Broker");
+            } catch (Exception ex) {
+                return "Error analyzing broker logs: " + ex.getMessage();
+            }
         }
     }
 
-    @Tool(description = "Analyze bookie (BookKeeper) logs for errors and warnings")
-    public String analyzeBookieLogs(
-            @ToolParam(description = "Maximum number of lines to analyze", required = false)
-            Integer maxLines) {
-        log.info("Tool: Analyzing bookie logs");
+    /**
+     * Analyze bookie (BookKeeper) logs for errors and warnings
+     * @param maxLines Maximum number of lines to analyze
+     */
+    public String analyzeBookieLogs(Integer maxLines) {
+        log.info("Tool: Analyzing bookie logs via MCP");
         int lines = maxLines != null ? maxLines : 1000;
 
         try {
-            LogAnalysisService.LogAnalysisResult result =
-                    logAnalysisService.analyzeBookieLogs(lines);
-
-            return formatAnalysisResult(result, "Bookie");
+            return mcpClient.callToolSync("analyze_logs",
+                    Map.of("component", "bookie",
+                           "max_lines", lines));
         } catch (Exception e) {
-            return "Error analyzing bookie logs: " + e.getMessage();
+            log.error("Failed to analyze bookie logs via MCP, falling back", e);
+            try {
+                LogAnalysisService.LogAnalysisResult result =
+                        logAnalysisService.analyzeBookieLogs(lines);
+
+                return formatAnalysisResult(result, "Bookie");
+            } catch (Exception ex) {
+                return "Error analyzing bookie logs: " + ex.getMessage();
+            }
         }
     }
 
-    @Tool(description = "Search for a specific pattern in all Pulsar logs")
-    public String searchAllLogs(
-            @ToolParam(description = "Search pattern or keyword") String pattern,
-            @ToolParam(description = "Maximum results per log file", required = false)
-            Integer maxResults) {
+    /**
+     * Search for a specific pattern in all Pulsar logs
+     * @param pattern Search pattern or keyword
+     * @param maxResults Maximum results per log file
+     */
+    public String searchAllLogs(String pattern, Integer maxResults) {
         log.info("Tool: Searching logs for: {}", pattern);
         int max = maxResults != null ? maxResults : 100;
 
@@ -102,10 +121,11 @@ public class LogAnalysisTool {
         }
     }
 
-    @Tool(description = "Get recent errors from all Pulsar components")
-    public String getRecentErrors(
-            @ToolParam(description = "Maximum errors to retrieve per component", required = false)
-            Integer maxErrors) {
+    /**
+     * Get recent errors from all Pulsar components
+     * @param maxErrors Maximum errors to retrieve per component
+     */
+    public String getRecentErrors(Integer maxErrors) {
         log.info("Tool: Getting recent errors");
         int max = maxErrors != null ? maxErrors : 50;
 
@@ -145,10 +165,12 @@ public class LogAnalysisTool {
         }
     }
 
-    @Tool(description = "Read the last N lines from a specific log file")
-    public String tailLogFile(
-            @ToolParam(description = "Path to the log file") String filePath,
-            @ToolParam(description = "Number of lines to read") Integer lines) {
+    /**
+     * Read the last N lines from a specific log file
+     * @param filePath Path to the log file
+     * @param lines Number of lines to read
+     */
+    public String tailLogFile(String filePath, Integer lines) {
         log.info("Tool: Tailing log file: {}", filePath);
         int lineCount = lines != null ? lines : 100;
 

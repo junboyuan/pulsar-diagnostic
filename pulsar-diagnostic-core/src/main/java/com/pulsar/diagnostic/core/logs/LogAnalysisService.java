@@ -211,7 +211,7 @@ public class LogAnalysisService {
         private List<LogEntry> warningEntries = new ArrayList<>();
         private List<DetectedPattern> detectedPatterns = new ArrayList<>();
         private long fileSize;
-        private Date lastModified;
+        private java.time.LocalDateTime lastModified;
     }
 
     @lombok.Data
