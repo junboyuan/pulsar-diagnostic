@@ -2,6 +2,7 @@ package com.pulsar.diagnostic.core.admin;
 
 import com.pulsar.diagnostic.common.enums.HealthStatus;
 import com.pulsar.diagnostic.core.config.PulsarConfig;
+import io.micrometer.core.annotation.Timed;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.common.naming.NamespaceName;
@@ -9,6 +10,7 @@ import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -35,6 +37,8 @@ public class PulsarAdminClient {
     /**
      * Get cluster info
      */
+    @Timed(value = "pulsar.admin.cluster.info", description = "Time to get cluster info")
+    @Cacheable(value = "clusterInfo", key = "'cluster-info'")
     public com.pulsar.diagnostic.common.model.PulsarCluster getClusterInfo() {
         try {
             log.info("Fetching cluster info for: {}", pulsarConfig.getClusterName());
@@ -67,6 +71,7 @@ public class PulsarAdminClient {
     /**
      * Check cluster health
      */
+    @Timed(value = "pulsar.admin.cluster.health", description = "Time to check cluster health")
     public HealthStatus checkHealth() {
         try {
             List<String> brokers = pulsarAdmin.brokers().getActiveBrokers(pulsarConfig.getClusterName());
@@ -82,6 +87,8 @@ public class PulsarAdminClient {
     /**
      * Get all active brokers
      */
+    @Timed(value = "pulsar.admin.brokers.list", description = "Time to list brokers")
+    @Cacheable(value = "brokers", key = "'all-brokers'")
     public List<com.pulsar.diagnostic.common.model.BrokerInfo> getBrokers() {
         try {
             List<String> brokerUrls = pulsarAdmin.brokers()
@@ -131,6 +138,8 @@ public class PulsarAdminClient {
     /**
      * Get all bookies
      */
+    @Timed(value = "pulsar.admin.bookies.list", description = "Time to list bookies")
+    @Cacheable(value = "bookies", key = "'all-bookies'")
     public List<com.pulsar.diagnostic.common.model.BookieInfo> getBookies() {
         try {
             List<String> bookieIds = new ArrayList<>();
@@ -167,6 +176,8 @@ public class PulsarAdminClient {
     /**
      * Get all tenants
      */
+    @Timed(value = "pulsar.admin.tenants.list", description = "Time to list tenants")
+    @Cacheable(value = "tenants", key = "'all-tenants'")
     public List<String> getTenants() {
         try {
             return pulsarAdmin.tenants().getTenants();
@@ -193,6 +204,8 @@ public class PulsarAdminClient {
     /**
      * Get all namespaces
      */
+    @Timed(value = "pulsar.admin.namespaces.list", description = "Time to list all namespaces")
+    @Cacheable(value = "namespaces", key = "'all-namespaces'")
     public List<String> getNamespaces() {
         List<String> tenants = getTenants();
         List<String> namespaces = new ArrayList<>();
@@ -256,6 +269,7 @@ public class PulsarAdminClient {
     /**
      * Get topics in a namespace
      */
+    @Timed(value = "pulsar.admin.topics.list", description = "Time to list topics")
     public List<String> getTopics(String namespace) {
         try {
             return pulsarAdmin.topics().getList(namespace);
@@ -266,39 +280,154 @@ public class PulsarAdminClient {
     }
 
     /**
-     * Get topic info - simplified version for API compatibility
+     * Get topic info with actual statistics from Pulsar Admin API
      */
+    @Timed(value = "pulsar.admin.topic.info", description = "Time to get topic info")
+    @Cacheable(value = "topicInfo", key = "#topic", unless = "#result == null")
     public com.pulsar.diagnostic.common.model.TopicInfo getTopicInfo(String topic) {
         TopicName topicName = TopicName.get(topic);
 
-        return com.pulsar.diagnostic.common.model.TopicInfo.builder()
-                .topic(topic)
-                .name(topicName.getLocalName())
-                .namespace(topicName.getNamespaceObject().toString())
-                .tenant(topicName.getTenant())
-                .persistent(topicName.isPersistent())
-                .partitions(1)
-                .backlogSize(0)
-                .messageCount(0)
-                .storageSize(0)
-                .producerCount(0)
-                .consumerCount(0)
-                .subscriptionCount(0)
-                .subscriptions(Collections.emptyList())
-                .stats(com.pulsar.diagnostic.common.model.TopicInfo.TopicStats.builder().build())
-                .build();
+        try {
+            // Get partition metadata
+            int partitionCount = 1;
+            try {
+                PartitionedTopicStats partitionMetadata = pulsarAdmin.topics().getPartitionedStats(topic, false);
+                if (partitionMetadata != null && partitionMetadata.getMetadata() != null) {
+                    partitionCount = partitionMetadata.getMetadata().partitions > 0
+                            ? partitionMetadata.getMetadata().partitions : 1;
+                }
+            } catch (PulsarAdminException e) {
+                // Non-partitioned topic, use default partition count of 1
+                log.debug("Topic {} is non-partitioned or metadata not available", topic);
+            }
+
+            // Get topic statistics
+            long backlogSize = 0;
+            long storageSize = 0;
+            int producerCount = 0;
+            int consumerCount = 0;
+            int subscriptionCount = 0;
+            double msgRateIn = 0;
+            double msgRateOut = 0;
+            double bytesRateIn = 0;
+            double bytesRateOut = 0;
+
+            try {
+                var stats = pulsarAdmin.topics().getStats(topic);
+
+                if (stats != null) {
+                    backlogSize = stats.getBacklogSize();
+                    storageSize = stats.getStorageSize();
+                    producerCount = stats.getPublishers() != null ? stats.getPublishers().size() : 0;
+                    subscriptionCount = stats.getSubscriptions() != null ? stats.getSubscriptions().size() : 0;
+                    msgRateIn = stats.getMsgRateIn();
+                    msgRateOut = stats.getMsgRateOut();
+                    bytesRateIn = stats.getMsgThroughputIn();
+                    bytesRateOut = stats.getMsgThroughputOut();
+
+                    // Count total consumers across all subscriptions
+                    if (stats.getSubscriptions() != null) {
+                        for (var sub : stats.getSubscriptions().values()) {
+                            consumerCount += sub.getConsumers() != null ? sub.getConsumers().size() : 0;
+                        }
+                    }
+                }
+            } catch (PulsarAdminException e) {
+                log.warn("Could not get stats for topic {}: {}", topic, e.getMessage());
+            }
+
+            // Get subscription names
+            List<String> subscriptionNames = getSubscriptionNames(topic);
+
+            // Build topic stats
+            com.pulsar.diagnostic.common.model.TopicInfo.TopicStats topicStats =
+                    com.pulsar.diagnostic.common.model.TopicInfo.TopicStats.builder()
+                            .messagesInRate(msgRateIn)
+                            .messagesOutRate(msgRateOut)
+                            .throughputIn(bytesRateIn)
+                            .throughputOut(bytesRateOut)
+                            .averageMessageSize(storageSize > 0 ? storageSize : 0)
+                            .build();
+
+            return com.pulsar.diagnostic.common.model.TopicInfo.builder()
+                    .topic(topic)
+                    .name(topicName.getLocalName())
+                    .namespace(topicName.getNamespaceObject().toString())
+                    .tenant(topicName.getTenant())
+                    .persistent(topicName.isPersistent())
+                    .partitions(partitionCount)
+                    .backlogSize(backlogSize)
+                    .messageCount(backlogSize) // backlog approximates message count
+                    .storageSize(storageSize)
+                    .producerCount(producerCount)
+                    .consumerCount(consumerCount)
+                    .subscriptionCount(subscriptionCount)
+                    .subscriptions(subscriptionNames)
+                    .stats(topicStats)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Failed to get topic info for: {}", topic, e);
+            // Return minimal info on error
+            return com.pulsar.diagnostic.common.model.TopicInfo.builder()
+                    .topic(topic)
+                    .name(topicName.getLocalName())
+                    .namespace(topicName.getNamespaceObject().toString())
+                    .tenant(topicName.getTenant())
+                    .persistent(topicName.isPersistent())
+                    .partitions(1)
+                    .backlogSize(0)
+                    .messageCount(0)
+                    .storageSize(0)
+                    .producerCount(0)
+                    .consumerCount(0)
+                    .subscriptionCount(0)
+                    .subscriptions(Collections.emptyList())
+                    .stats(com.pulsar.diagnostic.common.model.TopicInfo.TopicStats.builder().build())
+                    .build();
+        }
     }
 
     /**
-     * Get topic stats - simplified version
+     * Get topic stats - with actual data
      */
+    @Timed(value = "pulsar.admin.topic.stats", description = "Time to get topic stats")
+    @Cacheable(value = "topicStats", key = "#topic")
     public com.pulsar.diagnostic.common.model.TopicInfo.TopicStats getTopicStats(String topic) {
-        return com.pulsar.diagnostic.common.model.TopicInfo.TopicStats.builder().build();
+        try {
+            var stats = pulsarAdmin.topics().getStats(topic);
+
+            return com.pulsar.diagnostic.common.model.TopicInfo.TopicStats.builder()
+                    .messagesInRate(stats.getMsgRateIn())
+                    .messagesOutRate(stats.getMsgRateOut())
+                    .throughputIn(stats.getMsgThroughputIn())
+                    .throughputOut(stats.getMsgThroughputOut())
+                    .averageMessageSize((long) stats.getAverageMsgSize())
+                    .build();
+        } catch (PulsarAdminException e) {
+            log.error("Failed to get topic stats for: {}", topic, e);
+            return com.pulsar.diagnostic.common.model.TopicInfo.TopicStats.builder().build();
+        }
     }
 
     /**
-     * Get subscriptions for a topic - simplified version
+     * Get subscription names for a topic
      */
+    private List<String> getSubscriptionNames(String topic) {
+        try {
+            List<String> subscriptionNames = pulsarAdmin.topics().getSubscriptions(topic);
+            return subscriptionNames != null ? subscriptionNames : Collections.emptyList();
+        } catch (PulsarAdminException e) {
+            log.error("Failed to get subscriptions for topic: {}", topic, e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Get subscriptions for a topic with actual data
+     */
+    @Timed(value = "pulsar.admin.topic.subscriptions", description = "Time to get topic subscriptions")
+    @Cacheable(value = "topicSubscriptions", key = "#topic")
     public List<com.pulsar.diagnostic.common.model.SubscriptionInfo> getSubscriptions(String topic) {
         try {
             List<String> subscriptionNames = pulsarAdmin.topics().getSubscriptions(topic);
@@ -306,15 +435,35 @@ public class PulsarAdminClient {
                 return Collections.emptyList();
             }
 
-            return subscriptionNames.stream()
-                    .map(subName -> com.pulsar.diagnostic.common.model.SubscriptionInfo.builder()
-                            .subscriptionName(subName)
-                            .topic(topic)
-                            .type("Unknown")
-                            .messageCount(0)
-                            .consumerCount(0)
-                            .build())
-                    .collect(Collectors.toList());
+            List<com.pulsar.diagnostic.common.model.SubscriptionInfo> subscriptions = new ArrayList<>();
+
+            // Get stats to fetch subscription details
+            var stats = pulsarAdmin.topics().getStats(topic);
+
+            for (String subName : subscriptionNames) {
+                long msgBacklog = 0;
+                int consumerCount = 0;
+                String subType = "Unknown";
+
+                if (stats != null && stats.getSubscriptions() != null) {
+                    var subStats = stats.getSubscriptions().get(subName);
+                    if (subStats != null) {
+                        msgBacklog = subStats.getMsgBacklog();
+                        consumerCount = subStats.getConsumers() != null ? subStats.getConsumers().size() : 0;
+                        subType = subStats.getType() != null ? subStats.getType().toString() : "Unknown";
+                    }
+                }
+
+                subscriptions.add(com.pulsar.diagnostic.common.model.SubscriptionInfo.builder()
+                        .subscriptionName(subName)
+                        .topic(topic)
+                        .type(subType)
+                        .messageCount(msgBacklog)
+                        .consumerCount(consumerCount)
+                        .build());
+            }
+
+            return subscriptions;
 
         } catch (PulsarAdminException e) {
             log.error("Failed to get subscriptions for topic: {}", topic, e);

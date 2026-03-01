@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -103,6 +104,7 @@ public class KnowledgeBaseService {
     /**
      * Search with context for RAG
      */
+    @Cacheable(value = "knowledge", key = "#query + '-' + #topK", unless = "#result == null || #result.items.isEmpty()")
     public KnowledgeContext searchWithContext(String query, int topK) {
         if (!initialized) {
             return new KnowledgeContext(query, List.of(), "");

@@ -4,8 +4,10 @@ import com.pulsar.diagnostic.common.exception.MetricsException;
 import com.pulsar.diagnostic.common.model.MetricData;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.annotation.Timed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
@@ -54,6 +56,7 @@ public class PrometheusMetricsCollector {
     /**
      * Query a metric with time range
      */
+    @Timed(value = "prometheus.query", description = "Time to query Prometheus")
     public List<MetricData> queryMetric(String query, Long timestamp) {
         try {
             log.debug("Querying Prometheus metric: {}", query);
@@ -115,6 +118,8 @@ public class PrometheusMetricsCollector {
     /**
      * Get all key Pulsar metrics
      */
+    @Timed(value = "prometheus.metrics.all", description = "Time to get all Pulsar metrics")
+    @Cacheable(value = "metrics", key = "'all-pulsar-metrics'")
     public Map<String, List<MetricData>> getAllPulsarMetrics() {
         Map<String, List<MetricData>> results = new HashMap<>();
 
@@ -134,6 +139,8 @@ public class PrometheusMetricsCollector {
     /**
      * Get cluster-level metrics summary
      */
+    @Timed(value = "prometheus.metrics.summary", description = "Time to get cluster metrics summary")
+    @Cacheable(value = "metrics", key = "'cluster-metrics-summary'")
     public ClusterMetricsSummary getClusterMetricsSummary() {
         ClusterMetricsSummary summary = new ClusterMetricsSummary();
 
@@ -182,6 +189,8 @@ public class PrometheusMetricsCollector {
     /**
      * Get broker-specific metrics
      */
+    @Timed(value = "prometheus.metrics.broker", description = "Time to get broker metrics")
+    @Cacheable(value = "metrics", key = "'broker-metrics'")
     public Map<String, BrokerMetrics> getBrokerMetrics() {
         Map<String, BrokerMetrics> metricsMap = new HashMap<>();
 

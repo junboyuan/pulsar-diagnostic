@@ -2,6 +2,7 @@ package com.pulsar.diagnostic.web.controller;
 
 import com.pulsar.diagnostic.agent.agent.PulsarDiagnosticAgent;
 import com.pulsar.diagnostic.web.dto.InspectionRequest;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -25,7 +26,7 @@ public class InspectionController {
      * Perform a full cluster inspection
      */
     @PostMapping
-    public String inspect(@RequestBody(required = false) InspectionRequest request) {
+    public String inspect(@Valid @RequestBody(required = false) InspectionRequest request) {
         log.info("Received inspection request");
 
         if (request != null && request.focusAreas() != null) {
