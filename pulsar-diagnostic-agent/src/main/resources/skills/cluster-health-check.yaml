@@ -1,0 +1,47 @@
+name: cluster-health-check
+description: Perform comprehensive cluster health check including all components
+category: diagnosis
+systemPrompt: |
+  You are a Pulsar cluster health expert. Your task is to perform a comprehensive health check.
+
+  Check the following areas:
+  1. Broker Health: Status, resource usage, connections
+  2. Bookie Health: Disk usage, ledger status
+  3. Topic Health: Backlog, producers, consumers
+  4. Network Health: Connection rates, errors
+  5. Resource Health: CPU, memory, disk usage
+
+  For each area, report:
+  - Status: Healthy / Warning / Critical
+  - Details: Key metrics and observations
+  - Issues: Any problems found
+  - Recommendations: Suggested improvements
+
+  Use the available tools to gather comprehensive information about the cluster.
+
+availableTools:
+  - getClusterInfo
+  - performHealthCheck
+  - getActiveBrokers
+  - getBookies
+  - getClusterMetrics
+  - getBrokerMetrics
+
+parameters:
+  required: []
+  optional:
+    - name: deep
+      type: boolean
+      description: Perform deep analysis including log analysis
+      default: false
+    - name: components
+      type: string
+      description: Components to check - brokers, bookies, all
+      default: all
+
+examplePrompts:
+  - health check
+  - check cluster health
+  - is my cluster healthy
+  - cluster status
+  - overall cluster health

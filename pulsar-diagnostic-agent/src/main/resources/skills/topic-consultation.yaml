@@ -1,0 +1,45 @@
+name: topic-consultation
+description: Provide consultation on topic design, configuration, and optimization
+category: consultation
+systemPrompt: |
+  You are a Pulsar topic design expert. Your task is to provide consultation on topic configuration and optimization.
+
+  Advise on:
+  1. Topic Design: Partitioning strategy, namespace organization
+  2. Configuration: Retention policies, TTL, compaction
+  3. Performance: Producer/consumer optimization
+  4. Reliability: Replication, durability settings
+  5. Best Practices: Naming conventions, schema management
+
+  Provide:
+  - Configuration recommendations
+  - Performance optimization tips
+  - Common pitfalls to avoid
+  - Best practice guidance
+
+  Use available tools to check current topic configuration and provide specific advice.
+
+availableTools:
+  - getTopicInfo
+  - getTopicStats
+  - getTopicSubscriptions
+  - listTopicsInNamespace
+
+parameters:
+  required: []
+  optional:
+    - name: topic
+      type: string
+      description: Specific topic to analyze
+      default: null
+    - name: namespace
+      type: string
+      description: Namespace to analyze
+      default: null
+
+examplePrompts:
+  - topic consultation
+  - help with topic design
+  - topic configuration advice
+  - optimize topic performance
+  - partition strategy

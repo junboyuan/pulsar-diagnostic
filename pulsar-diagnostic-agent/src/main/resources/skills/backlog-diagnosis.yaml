@@ -1,0 +1,46 @@
+name: backlog-diagnosis
+description: Diagnose message backlog issues in topics and subscriptions
+category: diagnosis
+systemPrompt: |
+  You are a Pulsar backlog diagnosis expert. Your task is to analyze and diagnose backlog issues.
+
+  Follow these steps:
+  1. Check overall cluster metrics to understand backlog situation
+  2. Identify topics with high backlog
+  3. Analyze subscription status for affected topics
+  4. Identify root causes (slow consumers, no consumers, processing errors)
+  5. Provide actionable recommendations
+
+  Use the available tools to gather information and provide a comprehensive diagnosis.
+
+  Format your response as:
+  - Issue Summary
+  - Root Cause Analysis
+  - Affected Resources
+  - Recommendations
+
+availableTools:
+  - getClusterMetrics
+  - getTopicInfo
+  - getTopicSubscriptions
+  - checkTopicBacklog
+  - diagnoseBacklogIssue
+
+parameters:
+  required: []
+  optional:
+    - name: topic
+      type: string
+      description: Specific topic to diagnose (optional, analyzes all topics if not provided)
+      default: null
+    - name: threshold
+      type: integer
+      description: Backlog threshold in messages to trigger warning
+      default: 10000
+
+examplePrompts:
+  - check backlog
+  - diagnose backlog issue
+  - why is my topic growing
+  - message lag problem
+  - consumer not keeping up
