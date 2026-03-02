@@ -1,7 +1,5 @@
 package com.pulsar.diagnostic.agent.skill.declarative;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
@@ -9,26 +7,39 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Loads skill definitions from YAML files and manages the skill registry.
+ * Loads skill definitions from SKILL.md files.
+ *
+ * Skill files use the Claude Code SKILL.md format with YAML frontmatter:
+ *
+ * ---
+ * name: skill-name
+ * description: Skill description
+ * ---
+ *
+ * # Skill Title
+ *
+ * Skill content in markdown...
  */
 @Component
 public class SkillLoader {
 
     private static final Logger log = LoggerFactory.getLogger(SkillLoader.class);
 
-    private static final String SKILLS_LOCATION = "classpath:skills/*.yaml";
+    private static final String SKILLS_LOCATION = "classpath:skills/*/SKILL.md";
+    private static final Pattern FRONTMATTER_PATTERN = Pattern.compile("^---\\s*\n(.*?)\n---\\s*\n", Pattern.DOTALL);
+    private static final Pattern NAME_PATTERN = Pattern.compile("name:\\s*(.+)");
+    private static final Pattern DESCRIPTION_PATTERN = Pattern.compile("description:\\s*\"?([^\"\\n]+)\"?");
 
-    private final ObjectMapper yamlMapper;
     private final Map<String, SkillDefinition> skills = new ConcurrentHashMap<>();
-
-    public SkillLoader() {
-        this.yamlMapper = new ObjectMapper(new YAMLFactory());
-    }
 
     @PostConstruct
     public void loadSkills() {
@@ -52,7 +63,8 @@ public class SkillLoader {
 
     private void loadSkill(Resource resource) {
         try {
-            SkillDefinition skill = yamlMapper.readValue(resource.getInputStream(), SkillDefinition.class);
+            String content = readResourceContent(resource);
+            SkillDefinition skill = parseSkillDefinition(content, resource);
 
             if (skill.name() == null || skill.name().isEmpty()) {
                 log.warn("Skipping skill without name: {}", resource.getFilename());
@@ -60,11 +72,142 @@ public class SkillLoader {
             }
 
             skills.put(skill.getKey(), skill);
-            log.debug("Loaded skill: {} - {}", skill.name(), skill.description());
+            log.info("Loaded skill: {} - {}", skill.name(), skill.description());
 
         } catch (IOException e) {
             log.error("Failed to load skill from {}: {}", resource.getFilename(), e.getMessage());
         }
+    }
+
+    private String readResourceContent(Resource resource) throws IOException {
+        StringBuilder content = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append("\n");
+            }
+        }
+        return content.toString();
+    }
+
+    private SkillDefinition parseSkillDefinition(String content, Resource resource) {
+        // Parse frontmatter
+        String name = null;
+        String description = null;
+
+        Matcher frontmatterMatcher = FRONTMATTER_PATTERN.matcher(content);
+        if (frontmatterMatcher.find()) {
+            String frontmatter = frontmatterMatcher.group(1);
+
+            Matcher nameMatcher = NAME_PATTERN.matcher(frontmatter);
+            if (nameMatcher.find()) {
+                name = nameMatcher.group(1).trim();
+            }
+
+            Matcher descMatcher = DESCRIPTION_PATTERN.matcher(frontmatter);
+            if (descMatcher.find()) {
+                description = descMatcher.group(1).trim();
+            }
+        }
+
+        // Extract content after frontmatter
+        String body = content;
+        if (frontmatterMatcher.find()) {
+            body = content.substring(frontmatterMatcher.end());
+        }
+
+        // Extract category from content (look for ## Overview or first heading)
+        String category = extractCategory(body);
+
+        // Extract available tools from content
+        List<String> availableTools = extractTools(body);
+
+        // Extract example prompts from content
+        List<String> examplePrompts = extractExamplePrompts(body, name);
+
+        return new SkillDefinition(
+                name,
+                description,
+                category,
+                body.trim(),
+                availableTools,
+                null, // parameters - can be extended
+                examplePrompts
+        );
+    }
+
+    private String extractCategory(String content) {
+        // Try to find category from content patterns
+        if (content.contains("diagnos") || content.contains("troubleshoot")) {
+            return "diagnosis";
+        }
+        if (content.contains("performance") || content.contains("throughput")) {
+            return "analysis";
+        }
+        if (content.contains("planning") || content.contains("capacity")) {
+            return "planning";
+        }
+        if (content.contains("consultation") || content.contains("design")) {
+            return "consultation";
+        }
+        return "general";
+    }
+
+    private List<String> extractTools(String content) {
+        List<String> tools = new ArrayList<>();
+
+        // Look for tool names in code blocks or tables
+        Pattern toolPattern = Pattern.compile("`([a-zA-Z][a-zA-Z0-9]*)\\(\\)`");
+        Matcher matcher = toolPattern.matcher(content);
+
+        Set<String> seen = new HashSet<>();
+        while (matcher.find()) {
+            String tool = matcher.group(1);
+            if (!seen.contains(tool)) {
+                tools.add(tool);
+                seen.add(tool);
+            }
+        }
+
+        // Also look for tools in tables
+        Pattern tablePattern = Pattern.compile("\\|\\s*`?([a-zA-Z][a-zA-Z0-9]*)`?\\s*\\|");
+        Matcher tableMatcher = tablePattern.matcher(content);
+        while (tableMatcher.find()) {
+            String tool = tableMatcher.group(1);
+            if (!seen.contains(tool) && !tool.equals("Tool") && !tool.equals("Purpose")) {
+                tools.add(tool);
+                seen.add(tool);
+            }
+        }
+
+        return tools;
+    }
+
+    private List<String> extractExamplePrompts(String content, String skillName) {
+        List<String> prompts = new ArrayList<>();
+
+        // Add skill name as a potential match
+        if (skillName != null) {
+            prompts.add(skillName.replace("-", " "));
+        }
+
+        // Look for "When to Use" section
+        Pattern whenPattern = Pattern.compile("## When to Use\\s*\n([\\s\\S]*?)(?=##|$)");
+        Matcher matcher = whenPattern.matcher(content);
+        if (matcher.find()) {
+            String whenSection = matcher.group(1);
+            // Extract bullet points
+            Pattern bulletPattern = Pattern.compile("-\\s*(.+)");
+            Matcher bulletMatcher = bulletPattern.matcher(whenSection);
+            while (bulletMatcher.find()) {
+                String prompt = bulletMatcher.group(1).trim();
+                if (prompt.length() > 10 && prompt.length() < 100) {
+                    prompts.add(prompt.toLowerCase());
+                }
+            }
+        }
+
+        return prompts;
     }
 
     /**
