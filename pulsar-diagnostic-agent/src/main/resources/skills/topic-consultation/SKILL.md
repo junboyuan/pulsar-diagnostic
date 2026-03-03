@@ -1,6 +1,7 @@
 ---
 name: topic-consultation
-description: 用于提供主题设计、配置和优化咨询
+description: 用于提供主题设计、配置和优化咨询。当设计新主题、优化现有主题、选择分区策略时使用。
+allowed-tools: getTopicInfo, getTopicStats, getTopicSubscriptions, checkTopicBacklog
 ---
 
 # 主题咨询技能

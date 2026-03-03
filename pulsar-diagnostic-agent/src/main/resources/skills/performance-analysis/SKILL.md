@@ -1,6 +1,7 @@
 ---
 name: performance-analysis
-description: 用于分析集群性能并识别瓶颈
+description: 用于分析集群性能并识别瓶颈。当用户报告性能缓慢、吞吐量问题、高延迟时使用。
+allowed-tools: getClusterMetrics, getBrokerMetrics, getAllMetrics, queryMetric, getTopicInfo
 ---
 
 # 性能分析技能

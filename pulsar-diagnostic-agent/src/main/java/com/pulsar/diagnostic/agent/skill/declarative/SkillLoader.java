@@ -38,6 +38,7 @@ public class SkillLoader {
     private static final Pattern FRONTMATTER_PATTERN = Pattern.compile("^---\\s*\n(.*?)\n---\\s*\n", Pattern.DOTALL);
     private static final Pattern NAME_PATTERN = Pattern.compile("name:\\s*(.+)");
     private static final Pattern DESCRIPTION_PATTERN = Pattern.compile("description:\\s*\"?([^\"\\n]+)\"?");
+    private static final Pattern ALLOWED_TOOLS_PATTERN = Pattern.compile("allowed-tools:\\s*(.+)");
 
     private final Map<String, SkillDefinition> skills = new ConcurrentHashMap<>();
 
@@ -94,6 +95,7 @@ public class SkillLoader {
         // Parse frontmatter
         String name = null;
         String description = null;
+        List<String> allowedTools = new ArrayList<>();
 
         Matcher frontmatterMatcher = FRONTMATTER_PATTERN.matcher(content);
         if (frontmatterMatcher.find()) {
@@ -108,10 +110,24 @@ public class SkillLoader {
             if (descMatcher.find()) {
                 description = descMatcher.group(1).trim();
             }
+
+            // Parse allowed-tools from frontmatter
+            Matcher toolsMatcher = ALLOWED_TOOLS_PATTERN.matcher(frontmatter);
+            if (toolsMatcher.find()) {
+                String toolsStr = toolsMatcher.group(1).trim();
+                // Parse comma-separated tool names
+                for (String tool : toolsStr.split(",")) {
+                    String trimmed = tool.trim();
+                    if (!trimmed.isEmpty()) {
+                        allowedTools.add(trimmed);
+                    }
+                }
+            }
         }
 
         // Extract content after frontmatter
         String body = content;
+        frontmatterMatcher.reset(); // Reset matcher to find frontmatter again
         if (frontmatterMatcher.find()) {
             body = content.substring(frontmatterMatcher.end());
         }
@@ -119,8 +135,8 @@ public class SkillLoader {
         // Extract category from content (look for ## Overview or first heading)
         String category = extractCategory(body);
 
-        // Extract available tools from content
-        List<String> availableTools = extractTools(body);
+        // If no allowed-tools in frontmatter, extract from content as fallback
+        List<String> availableTools = allowedTools.isEmpty() ? extractTools(body) : allowedTools;
 
         // Extract example prompts from content
         List<String> examplePrompts = extractExamplePrompts(body, name);

@@ -1,6 +1,7 @@
 ---
 name: connectivity-troubleshoot
-description: 用于排查集群中的连接和网络问题
+description: 用于排查集群中的连接和网络问题。当客户端无法连接、连接超时、认证失败时使用。
+allowed-tools: getClusterInfo, performHealthCheck, getActiveBrokers, diagnoseConnectionIssues
 ---
 
 # 连接故障排查技能

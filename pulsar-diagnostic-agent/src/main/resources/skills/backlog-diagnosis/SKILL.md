@@ -1,6 +1,7 @@
 ---
 name: backlog-diagnosis
-description: 用于诊断Pulsar主题和订阅中的消息积压问题
+description: 用于诊断Pulsar主题和订阅中的消息积压问题。当用户提到积压、消费延迟、消息堆积时使用。
+allowed-tools: getClusterMetrics, getTopicInfo, getTopicSubscriptions, checkTopicBacklog, diagnoseBacklogIssue
 ---
 
 # 消息积压诊断技能

@@ -1,6 +1,7 @@
 ---
 name: capacity-planning
-description: 用于分析集群容量并提供扩容建议
+description: 用于分析集群容量并提供扩容建议。当规划增长、评估资源需求、添加新工作负载前使用。
+allowed-tools: getClusterInfo, getClusterMetrics, getBrokerMetrics, getAllMetrics
 ---
 
 # 容量规划技能

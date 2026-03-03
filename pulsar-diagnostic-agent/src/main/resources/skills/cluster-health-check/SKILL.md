@@ -1,6 +1,7 @@
 ---
 name: cluster-health-check
-description: 用于执行全面的集群健康检查，包括所有组件
+description: 用于执行全面的集群健康检查，包括所有组件。当用户询问集群健康状态、需要定期健康监控时使用。
+allowed-tools: getClusterInfo, performHealthCheck, getActiveBrokers, getBookies, getClusterMetrics, analyzeBrokerLogs, getBrokerMetrics
 ---
 
 # 集群健康检查技能
