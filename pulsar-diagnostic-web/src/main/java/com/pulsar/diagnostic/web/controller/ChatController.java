@@ -1,6 +1,8 @@
 package com.pulsar.diagnostic.web.controller;
 
 import com.pulsar.diagnostic.agent.agent.PulsarDiagnosticAgent;
+import com.pulsar.diagnostic.agent.dto.QAResponse;
+import com.pulsar.diagnostic.agent.service.ChatService;
 import com.pulsar.diagnostic.web.dto.ChatRequest;
 import com.pulsar.diagnostic.web.dto.ChatResponse;
 import jakarta.validation.Valid;
@@ -20,9 +22,11 @@ public class ChatController {
     private static final Logger log = LoggerFactory.getLogger(ChatController.class);
 
     private final PulsarDiagnosticAgent agent;
+    private final ChatService chatService;
 
-    public ChatController(PulsarDiagnosticAgent agent) {
+    public ChatController(PulsarDiagnosticAgent agent, ChatService chatService) {
         this.agent = agent;
+        this.chatService = chatService;
     }
 
     /**
@@ -31,7 +35,7 @@ public class ChatController {
     @PostMapping
     public ChatResponse chat(@Valid @RequestBody ChatRequest request) {
         log.info("Received chat request: {}",
-                request.message().substring(0, Math.min(50, request.message().length())));
+                truncate(request.message(), 50));
 
         long startTime = System.currentTimeMillis();
 
@@ -48,6 +52,24 @@ public class ChatController {
     }
 
     /**
+     * 知识问答接口
+     *
+     * 专门用于基于知识库的问答，返回结构化响应
+     */
+    @PostMapping("/qa")
+    public ChatResponse knowledgeQA(@Valid @RequestBody ChatRequest request) {
+        log.info("Received knowledge QA request: {}", truncate(request.message(), 50));
+
+        long startTime = System.currentTimeMillis();
+
+        QAResponse qaResponse = chatService.chatQA(request.message(), request.history());
+
+        long processingTime = System.currentTimeMillis() - startTime;
+
+        return ChatResponse.fromQA(qaResponse, processingTime);
+    }
+
+    /**
      * Stream a chat response
      */
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -55,5 +77,10 @@ public class ChatController {
         log.info("Received streaming chat request");
 
         return agent.chatStream(request.message());
+    }
+
+    private String truncate(String str, int maxLen) {
+        if (str == null) return "";
+        return str.length() > maxLen ? str.substring(0, maxLen) + "..." : str;
     }
 }

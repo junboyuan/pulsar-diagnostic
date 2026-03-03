@@ -1,5 +1,6 @@
 package com.pulsar.diagnostic.agent.service;
 
+import com.pulsar.diagnostic.agent.dto.QAResponse;
 import com.pulsar.diagnostic.agent.intent.IntentRecognizer;
 import com.pulsar.diagnostic.agent.intent.IntentResult;
 import com.pulsar.diagnostic.agent.prompt.PromptTemplates;
@@ -21,7 +22,7 @@ import java.util.Map;
 /**
  * 聊天服务
  *
- * 处理用户聊天消息，包含意图识别和技能路由
+ * 处理用户聊天消息，包含意图识别、技能路由和知识问答
  */
 @Service
 public class ChatService {
@@ -33,17 +34,20 @@ public class ChatService {
     private final PromptTemplates promptTemplates;
     private final IntentRecognizer intentRecognizer;
     private final SkillExecutor skillExecutor;
+    private final KnowledgeQAService knowledgeQAService;
 
     public ChatService(ChatClient chatClient,
                        KnowledgeBaseService knowledgeBaseService,
                        PromptTemplates promptTemplates,
                        IntentRecognizer intentRecognizer,
-                       SkillExecutor skillExecutor) {
+                       SkillExecutor skillExecutor,
+                       KnowledgeQAService knowledgeQAService) {
         this.chatClient = chatClient;
         this.knowledgeBaseService = knowledgeBaseService;
         this.promptTemplates = promptTemplates;
         this.intentRecognizer = intentRecognizer;
         this.skillExecutor = skillExecutor;
+        this.knowledgeQAService = knowledgeQAService;
     }
 
     /**
@@ -58,7 +62,7 @@ public class ChatService {
      * 发送聊天消息（带对话历史）
      */
     public String chat(String userMessage, List<String> conversationHistory) {
-        log.info("处理聊天消息: {}", userMessage.substring(0, Math.min(50, userMessage.length())));
+        log.info("处理聊天消息: {}", truncate(userMessage, 50));
 
         try {
             // 1. 意图识别
@@ -68,8 +72,8 @@ public class ChatService {
 
             // 2. 根据意图路由处理
             if (intent.isGeneral()) {
-                // 通用对话
-                return handleGeneralChat(userMessage, conversationHistory);
+                // 通用对话 - 使用知识问答
+                return handleKnowledgeQA(userMessage, conversationHistory);
             } else {
                 // 调用特定技能处理
                 return handleSkillExecution(userMessage, intent);
@@ -82,10 +86,55 @@ public class ChatService {
     }
 
     /**
-     * 处理通用对话
+     * 知识问答模式
+     */
+    public QAResponse chatQA(String userMessage, List<String> conversationHistory) {
+        log.info("知识问答模式: {}", truncate(userMessage, 50));
+        return knowledgeQAService.ask(userMessage, conversationHistory);
+    }
+
+    /**
+     * 处理知识问答
+     */
+    private String handleKnowledgeQA(String userMessage, List<String> conversationHistory) {
+        log.info("处理知识问答");
+
+        try {
+            QAResponse response = knowledgeQAService.ask(userMessage, conversationHistory);
+            return formatQAResponse(response);
+        } catch (Exception e) {
+            log.error("知识问答处理失败", e);
+            // 降级到普通对话
+            return handleGeneralChat(userMessage, conversationHistory);
+        }
+    }
+
+    /**
+     * 格式化知识问答响应
+     */
+    private String formatQAResponse(QAResponse response) {
+        StringBuilder sb = new StringBuilder();
+
+        if (response.useful()) {
+            sb.append(response.content());
+            if (response.translation() != null && !response.translation().isEmpty()) {
+                sb.append("\n\n---\n\n**English Translation**:\n").append(response.translation());
+            }
+        } else {
+            sb.append(response.content());
+            if (response.translation() != null && !response.translation().isEmpty()) {
+                sb.append("\n\n").append(response.translation());
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * 处理通用对话（降级方案）
      */
     private String handleGeneralChat(String userMessage, List<String> conversationHistory) {
-        log.info("处理通用对话");
+        log.info("处理通用对话（降级模式）");
 
         try {
             String knowledgeContext = getKnowledgeContext(userMessage);
@@ -144,9 +193,9 @@ public class ChatService {
 
         } catch (Exception e) {
             log.error("技能执行失败: {}", intent.intent(), e);
-            // 降级到通用对话
+            // 降级到知识问答
             return "技能执行遇到问题，让我尝试用其他方式帮您...\n\n" +
-                   handleGeneralChat(userMessage, null);
+                   handleKnowledgeQA(userMessage, null);
         }
     }
 
@@ -195,7 +244,7 @@ public class ChatService {
      * 流式聊天响应（带对话历史）
      */
     public Flux<String> chatStream(String userMessage, List<String> conversationHistory) {
-        log.info("流式处理聊天消息: {}", userMessage.substring(0, Math.min(50, userMessage.length())));
+        log.info("流式处理聊天消息: {}", truncate(userMessage, 50));
 
         try {
             // 意图识别
@@ -269,5 +318,10 @@ public class ChatService {
             log.debug("无法获取知识上下文: {}", e.getMessage());
             return null;
         }
+    }
+
+    private String truncate(String str, int maxLen) {
+        if (str == null) return "";
+        return str.length() > maxLen ? str.substring(0, maxLen) + "..." : str;
     }
 }

@@ -63,6 +63,34 @@ public class PromptTemplates {
         6. 配置健康
         """;
 
+    private static final String DEFAULT_QA_PROMPT = """
+        你是Apache Pulsar消息流平台的智能问答助手，你需要根据对话历史、用户最新消息以及知识库内容回答用户问题。
+
+        ### 回复原则
+
+        1. **简洁明确**：直接回答核心要点，避免冗余，回复不超过200字
+        2. **专业准确**：体现Pulsar领域专业性，使用正确的技术术语
+        3. **客观可信**：所有回答必须基于【知识】内容，不编造或臆测信息
+        4. **可操作导向**：若知识库内容与问题相关，提供具体可执行的排查步骤或解决方案
+        5. **边界明确**：若知识库内容不足以回答问题，应诚实说明
+
+        ### 知识库内容
+        {knowledge}
+
+        ### 对话历史
+        {conversationHistory}
+
+        ### 用户最新消息
+        {userMessage}
+
+        ### 输出要求
+
+        1. 使用中文回复，控制在200字以内
+        2. 提供回复内容的英文翻译
+        3. **必须**严格按照以下JSON格式输出：
+        {"useful": boolean, "content": "string", "translation": "string"}
+        """;
+
     @PostConstruct
     public void loadPrompts() {
         log.info("加载提示词模板: {}", PROMPT_FILE);
@@ -115,6 +143,7 @@ public class PromptTemplates {
         prompts.put("SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT);
         prompts.put("DIAGNOSTIC_SYSTEM_PROMPT", DEFAULT_DIAGNOSTIC_PROMPT);
         prompts.put("INSPECTION_SYSTEM_PROMPT", DEFAULT_INSPECTION_PROMPT);
+        prompts.put("QA_SYSTEM_PROMPT", DEFAULT_QA_PROMPT);
     }
 
     /**
@@ -144,6 +173,30 @@ public class PromptTemplates {
     public String getKnowledgeContextTemplate() {
         return prompts.getOrDefault("KNOWLEDGE_CONTEXT_TEMPLATE",
                 "请使用以下知识：\n\n{knowledge}\n\n---\n\n基于此知识，帮助用户处理请求。");
+    }
+
+    /**
+     * 获取知识问答提示词
+     */
+    public String getQAPrompt() {
+        return prompts.getOrDefault("QA_SYSTEM_PROMPT", DEFAULT_QA_PROMPT);
+    }
+
+    /**
+     * 生成知识问答提示词
+     *
+     * @param knowledge           知识库内容
+     * @param conversationHistory 对话历史
+     * @param userMessage         用户最新消息
+     * @return 完整的提示词
+     */
+    public String generateQAPrompt(String knowledge, String conversationHistory, String userMessage) {
+        String template = getQAPrompt();
+
+        return template
+                .replace("{knowledge}", knowledge != null ? knowledge : "暂无相关知识库内容")
+                .replace("{conversationHistory}", conversationHistory != null ? conversationHistory : "暂无对话历史")
+                .replace("{userMessage}", userMessage != null ? userMessage : "");
     }
 
     /**

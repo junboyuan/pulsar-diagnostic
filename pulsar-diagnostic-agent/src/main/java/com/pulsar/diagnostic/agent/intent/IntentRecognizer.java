@@ -12,6 +12,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -21,6 +22,7 @@ import java.util.regex.Pattern;
  * 意图识别服务
  *
  * 分析用户输入，识别意图并匹配到对应的技能
+ * 支持对话历史和指代消解
  */
 @Service
 public class IntentRecognizer {
@@ -96,11 +98,27 @@ public class IntentRecognizer {
      * @return 意图识别结果
      */
     public IntentResult recognize(String userInput) {
+        return recognize(userInput, null);
+    }
+
+    /**
+     * 识别用户输入的意图（带对话历史）
+     *
+     * @param userInput           用户输入
+     * @param conversationHistory 对话历史
+     * @return 意图识别结果
+     */
+    public IntentResult recognize(String userInput, List<String> conversationHistory) {
         if (userInput == null || userInput.trim().isEmpty()) {
             return IntentResult.general();
         }
 
-        log.info("识别用户意图: {}", userInput.substring(0, Math.min(50, userInput.length())));
+        log.info("识别用户意图: {}", truncate(userInput, 50));
+
+        // 如果有对话历史，直接使用 LLM 进行深度识别（支持指代消解）
+        if (conversationHistory != null && !conversationHistory.isEmpty()) {
+            return recognizeWithLLM(userInput, conversationHistory);
+        }
 
         // 首先尝试关键词快速匹配
         IntentResult quickResult = quickMatch(userInput);
@@ -109,8 +127,8 @@ public class IntentRecognizer {
             return quickResult;
         }
 
-        // 使用LLM进行深度识别
-        return recognizeWithLLM(userInput);
+        // 使用 LLM 进行深度识别
+        return recognizeWithLLM(userInput, null);
     }
 
     /**
@@ -140,33 +158,41 @@ public class IntentRecognizer {
 
         if (bestIntent != null && bestScore >= 2) {
             double confidence = Math.min(0.95, 0.5 + (bestScore * 0.15));
-            return IntentResult.of(bestIntent, confidence,
+            return IntentResult.of(
+                    bestIntent,
+                    confidence,
                     "关键词匹配: " + bestScore + " 个关键词",
-                    "调用" + bestIntent + "技能处理");
+                    "调用" + bestIntent + "技能处理",
+                    input, // 原始问题作为 resolved_question
+                    ""     // 快速匹配不需要翻译
+            );
         }
 
         return null;
     }
 
     /**
-     * 使用LLM进行意图识别
+     * 使用 LLM 进行意图识别
      */
-    private IntentResult recognizeWithLLM(String userInput) {
+    private IntentResult recognizeWithLLM(String userInput, List<String> conversationHistory) {
         if (intentPrompt == null) {
-            // 没有LLM提示词，使用关键词匹配结果或返回通用意图
+            // 没有 LLM 提示词，使用关键词匹配结果或返回通用意图
             IntentResult quickResult = quickMatch(userInput);
             return quickResult != null ? quickResult : IntentResult.general();
         }
 
         try {
-            String prompt = buildPrompt(userInput);
+            String prompt = buildPrompt(userInput, conversationHistory);
             String response = chatClient.prompt()
                     .user(prompt)
                     .call()
                     .content();
 
-            IntentResult result = parseResponse(response);
-            log.info("LLM意图识别结果: {} (置信度: {})", result.intent(), result.confidence());
+            IntentResult result = parseResponse(response, userInput);
+            log.info("LLM意图识别结果: {} (置信度: {}, 指代消解: {})",
+                    result.intent(), result.confidence(),
+                    !userInput.equals(result.resolvedQuestion()));
+
             return result;
 
         } catch (Exception e) {
@@ -180,10 +206,32 @@ public class IntentRecognizer {
     /**
      * 构建意图识别提示词
      */
-    private String buildPrompt(String userInput) {
+    private String buildPrompt(String userInput, List<String> conversationHistory) {
         // 提取意图识别模板部分
         String template = extractTemplate();
-        return template.replace("{user_input}", userInput);
+
+        // 格式化对话历史
+        String historyContext = formatConversationHistory(conversationHistory);
+
+        return template
+                .replace("{conversation_history}", historyContext)
+                .replace("{user_input}", userInput);
+    }
+
+    /**
+     * 格式化对话历史
+     */
+    private String formatConversationHistory(List<String> history) {
+        if (history == null || history.isEmpty()) {
+            return "无对话历史";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < history.size(); i++) {
+            String role = (i % 2 == 0) ? "用户" : "助手";
+            sb.append("- ").append(role).append(": ").append(history.get(i)).append("\n");
+        }
+        return sb.toString();
     }
 
     /**
@@ -191,7 +239,7 @@ public class IntentRecognizer {
      */
     private String extractTemplate() {
         if (intentPrompt == null) {
-            return "请分析用户输入并返回JSON格式的意图识别结果。用户输入：{user_input}";
+            return "请分析用户输入并返回JSON格式的意图识别结果。\n\n对话历史：{conversation_history}\n用户输入：{user_input}";
         }
 
         // 查找模板部分
@@ -210,18 +258,18 @@ public class IntentRecognizer {
     }
 
     /**
-     * 解析LLM响应
+     * 解析 LLM 响应
      */
-    private IntentResult parseResponse(String response) {
+    private IntentResult parseResponse(String response, String originalInput) {
         if (response == null || response.isEmpty()) {
             return IntentResult.general();
         }
 
         try {
-            // 提取JSON部分
+            // 提取 JSON 部分
             String json = extractJson(response);
             if (json == null) {
-                log.warn("无法从响应中提取JSON: {}", response.substring(0, Math.min(100, response.length())));
+                log.warn("无法从响应中提取JSON: {}", truncate(response, 100));
                 return IntentResult.general();
             }
 
@@ -232,6 +280,8 @@ public class IntentRecognizer {
             double confidence = parseDouble(map.get("confidence"), 0.5);
             String reasoning = (String) map.getOrDefault("reasoning", "");
             String suggestedAction = (String) map.getOrDefault("suggested_action", "");
+            String resolvedQuestion = (String) map.getOrDefault("resolved_question", originalInput);
+            String translation = (String) map.getOrDefault("translation", "");
 
             // 验证意图是否有效
             if (!VALID_INTENTS.contains(intent)) {
@@ -239,7 +289,7 @@ public class IntentRecognizer {
                 intent = "general";
             }
 
-            return IntentResult.of(intent, confidence, reasoning, suggestedAction);
+            return IntentResult.of(intent, confidence, reasoning, suggestedAction, resolvedQuestion, translation);
 
         } catch (Exception e) {
             log.error("解析意图识别响应失败: {}", e.getMessage());
@@ -248,16 +298,16 @@ public class IntentRecognizer {
     }
 
     /**
-     * 从响应中提取JSON
+     * 从响应中提取 JSON
      */
     private String extractJson(String response) {
-        // 尝试直接匹配JSON对象
+        // 尝试直接匹配 JSON 对象
         Matcher matcher = JSON_PATTERN.matcher(response);
         if (matcher.find()) {
             return matcher.group();
         }
 
-        // 尝试提取```json代码块
+        // 尝试提取 ```json 代码块
         int jsonStart = response.indexOf("```json");
         if (jsonStart >= 0) {
             int jsonEnd = response.indexOf("```", jsonStart + 7);
@@ -266,14 +316,57 @@ public class IntentRecognizer {
             }
         }
 
-        // 尝试提取{}之间的内容
+        // 尝试提取 {} 之间的内容
         int start = response.indexOf('{');
-        int end = response.lastIndexOf('}');
+        int end = findMatchingBrace(response, start);
         if (start >= 0 && end > start) {
             return response.substring(start, end + 1);
         }
 
         return null;
+    }
+
+    /**
+     * 找到匹配的右大括号
+     */
+    private int findMatchingBrace(String str, int start) {
+        if (start < 0) return -1;
+
+        int depth = 0;
+        boolean inString = false;
+        boolean escape = false;
+
+        for (int i = start; i < str.length(); i++) {
+            char c = str.charAt(i);
+
+            if (escape) {
+                escape = false;
+                continue;
+            }
+
+            if (c == '\\') {
+                escape = true;
+                continue;
+            }
+
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+
+            if (!inString) {
+                if (c == '{') {
+                    depth++;
+                } else if (c == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        return i;
+                    }
+                }
+            }
+        }
+
+        return -1;
     }
 
     private double parseDouble(Object value, double defaultValue) {
@@ -291,5 +384,10 @@ public class IntentRecognizer {
      */
     public Set<String> getValidIntents() {
         return VALID_INTENTS;
+    }
+
+    private String truncate(String str, int maxLen) {
+        if (str == null) return "";
+        return str.length() > maxLen ? str.substring(0, maxLen) + "..." : str;
     }
 }
