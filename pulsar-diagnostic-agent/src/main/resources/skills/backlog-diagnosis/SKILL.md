@@ -1,90 +1,90 @@
 ---
 name: backlog-diagnosis
-description: Use when diagnosing message backlog issues in Pulsar topics and subscriptions
+description: 用于诊断Pulsar主题和订阅中的消息积压问题
 ---
 
-# Backlog Diagnosis Skill
+# 消息积压诊断技能
 
-## Overview
+## 概述
 
-Diagnose and analyze message backlog issues in Apache Pulsar topics and subscriptions.
+诊断和分析Apache Pulsar主题和订阅中的消息积压问题。
 
-## When to Use
+## 适用场景
 
-Use this skill when:
-- User reports message backlog growing
-- Consumer lag issues
-- Messages not being consumed
-- Subscription backlog warnings
+在以下情况下使用此技能：
+- 用户报告消息积压增长
+- 消费者延迟问题
+- 消息未被消费
+- 订阅积压警告
 
-## Process
+## 处理流程
 
-Follow these steps in order:
+按顺序执行以下步骤：
 
-### 1. Gather Information
+### 1. 收集信息
 
-Use the available tools to collect data:
-- `getClusterMetrics()` - Check overall cluster backlog
-- `getTopicInfo(topicName)` - Get topic statistics
-- `getTopicSubscriptions(topicName)` - Check subscription status
-- `checkTopicBacklog(topicName)` - Detailed backlog analysis
+使用可用工具收集数据：
+- `getClusterMetrics()` - 检查整体集群积压情况
+- `getTopicInfo(topicName)` - 获取主题统计信息
+- `getTopicSubscriptions(topicName)` - 检查订阅状态
+- `checkTopicBacklog(topicName)` - 详细积压分析
 
-### 2. Analyze Root Cause
+### 2. 分析根本原因
 
-Identify the root cause from:
-- **No consumers** - Subscription exists but no active consumers
-- **Slow consumers** - Consumers active but processing too slowly
-- **Consumer errors** - Processing failures causing redelivery
-- **Producer surge** - Sudden increase in message rate
-- **Resource constraints** - Broker/bookie resource issues
+从以下方面识别根本原因：
+- **无消费者** - 订阅存在但没有活跃的消费者
+- **消费者处理慢** - 消费者活跃但处理速度太慢
+- **消费者错误** - 处理失败导致重新投递
+- **生产者激增** - 消息速率突然增加
+- **资源限制** - Broker/Bookie资源问题
 
-### 3. Provide Diagnosis
+### 3. 提供诊断结果
 
-Structure your diagnosis as:
+按以下格式输出诊断结果：
 ```
-## Backlog Diagnosis Report
+## 积压诊断报告
 
-### Issue Summary
-[Brief description of the backlog situation]
+### 问题摘要
+[积压情况简要描述]
 
-### Affected Resources
-- Topic: [topic name]
-- Subscription: [subscription name]
-- Current backlog: [X messages / Y bytes]
+### 受影响资源
+- 主题：[主题名称]
+- 订阅：[订阅名称]
+- 当前积压：[X条消息 / Y字节]
 
-### Root Cause
-[Identified root cause with evidence]
+### 根本原因
+[已识别的根本原因及证据]
 
-### Recommendations
-1. [Immediate action]
-2. [Short-term fix]
-3. [Long-term improvement]
+### 建议措施
+1. [立即行动]
+2. [短期修复]
+3. [长期改进]
 ```
 
-## Available Tools
+## 可用工具
 
-| Tool | Purpose |
-|------|---------|
-| `getClusterMetrics` | Get overall cluster metrics including backlog |
-| `getTopicInfo` | Get detailed topic information |
-| `getTopicSubscriptions` | List all subscriptions for a topic |
-| `checkTopicBacklog` | Detailed backlog check for a topic |
-| `diagnoseBacklogIssue` | Specialized backlog diagnosis |
+| 工具 | 用途 |
+|------|------|
+| `getClusterMetrics` | 获取集群整体指标包括积压 |
+| `getTopicInfo` | 获取详细主题信息 |
+| `getTopicSubscriptions` | 列出主题的所有订阅 |
+| `checkTopicBacklog` | 主题积压详细检查 |
+| `diagnoseBacklogIssue` | 专门的积压诊断 |
 
-## Example Usage
+## 示例用法
 
-**User query:** "My topic has a growing backlog, can you help?"
+**用户查询：** "我的主题积压在增长，能帮忙看看吗？"
 
-**Response pattern:**
-1. First call `getClusterMetrics()` to understand overall situation
-2. Then call `getTopicInfo(topic)` for the specific topic
-3. Call `getTopicSubscriptions(topic)` to check consumers
-4. Analyze and provide diagnosis with recommendations
+**响应模式：**
+1. 首先调用 `getClusterMetrics()` 了解整体情况
+2. 然后调用 `getTopicInfo(topic)` 获取特定主题信息
+3. 调用 `getTopicSubscriptions(topic)` 检查消费者
+4. 分析并提供诊断建议
 
-## Red Flags
+## 警告信号
 
-Watch for these warning signs:
-- Backlog growing faster than consumption rate
-- No active consumers on subscription
-- Consumer with 0 message rate
-- Backlog exceeding 100MB per topic
+注意以下警告信号：
+- 积压增长速度超过消费速度
+- 订阅上没有活跃消费者
+- 消费者消息速率为0
+- 每个主题积压超过100MB

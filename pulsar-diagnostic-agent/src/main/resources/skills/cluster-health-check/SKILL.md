@@ -1,27 +1,27 @@
 ---
 name: cluster-health-check
-description: Use when performing comprehensive cluster health checks including all components
+description: 用于执行全面的集群健康检查，包括所有组件
 ---
 
-# Cluster Health Check Skill
+# 集群健康检查技能
 
-## Overview
+## 概述
 
-Perform comprehensive health checks on Apache Pulsar clusters, including brokers, bookies, topics, and overall system health.
+对Apache Pulsar集群进行全面健康检查，包括Broker、Bookie、主题和整体系统健康状况。
 
-## When to Use
+## 适用场景
 
-Use this skill when:
-- User asks for cluster health status
-- Regular health monitoring
-- After maintenance or configuration changes
-- Troubleshooting cluster issues
+在以下情况下使用此技能：
+- 用户询问集群健康状态
+- 定期健康监控
+- 维护或配置更改后
+- 排查集群问题
 
-## Process
+## 处理流程
 
-Follow these steps in order:
+按顺序执行以下步骤：
 
-### 1. Check Core Components
+### 1. 检查核心组件
 
 ```dot
 digraph health_check {
@@ -29,73 +29,73 @@ digraph health_check {
     "performHealthCheck" -> "getActiveBrokers";
     "getActiveBrokers" -> "getBookies";
     "getBookies" -> "getClusterMetrics";
-    "getClusterMetrics" -> "Analyze Results";
+    "getClusterMetrics" -> "分析结果";
 }
 ```
 
-Call these tools in sequence:
-1. `getClusterInfo()` - Basic cluster information
-2. `performHealthCheck()` - Health check
-3. `getActiveBrokers()` - Broker status
-4. `getBookies()` - Bookie status
-5. `getClusterMetrics()` - Current metrics
+按顺序调用这些工具：
+1. `getClusterInfo()` - 基本集群信息
+2. `performHealthCheck()` - 健康检查
+3. `getActiveBrokers()` - Broker状态
+4. `getBookies()` - Bookie状态
+5. `getClusterMetrics()` - 当前指标
 
-### 2. Evaluate Health Status
+### 2. 评估健康状态
 
-For each component, determine:
-- **HEALTHY** - All checks pass
-- **WARNING** - Minor issues detected
-- **CRITICAL** - Major issues or component down
+对每个组件确定：
+- **健康** - 所有检查通过
+- **警告** - 检测到轻微问题
+- **严重** - 主要问题或组件宕机
 
-### 3. Generate Health Report
+### 3. 生成健康报告
 
 ```
-## Cluster Health Report
+## 集群健康报告
 
-### Overall Status: [HEALTHY/WARNING/CRITICAL]
+### 整体状态：[健康/警告/严重]
 
-### Components
+### 组件详情
 
 #### Brokers
-- Status: [HEALTHY/WARNING/CRITICAL]
-- Active count: X/Y
-- Issues: [list any]
+- 状态：[健康/警告/严重]
+- 活跃数量：X/Y
+- 问题：[列出任何问题]
 
 #### Bookies
-- Status: [HEALTHY/WARNING/CRITICAL]
-- Total: X, Writable: Y, Read-only: Z
-- Issues: [list any]
+- 状态：[健康/警告/严重]
+- 总数：X，可写：Y，只读：Z
+- 问题：[列出任何问题]
 
-#### Topics
-- Total topics: X
-- Topics with backlog: Y
-- Issues: [list any]
+#### 主题
+- 主题总数：X
+- 有积压的主题：Y
+- 问题：[列出任何问题]
 
-### Recommendations
-1. [Priority recommendations based on findings]
+### 建议措施
+1. [根据发现提供优先建议]
 ```
 
-## Available Tools
+## 可用工具
 
-| Tool | Purpose |
-|------|---------|
-| `getClusterInfo` | Get overall cluster information |
-| `performHealthCheck` | Run health check on all components |
-| `getActiveBrokers` | List active brokers |
-| `getBookies` | List bookies with status |
-| `getClusterMetrics` | Get cluster-wide metrics |
-| `quickHealthSnapshot` | Quick health status |
+| 工具 | 用途 |
+|------|------|
+| `getClusterInfo` | 获取集群整体信息 |
+| `performHealthCheck` | 对所有组件运行健康检查 |
+| `getActiveBrokers` | 列出活跃的Broker |
+| `getBookies` | 列出Bookie及其状态 |
+| `getClusterMetrics` | 获取集群范围指标 |
+| `quickHealthSnapshot` | 快速健康状态 |
 
-## Deep Analysis Option
+## 深度分析选项
 
-When user requests deep analysis:
-- Call `analyzeBrokerLogs()` for log analysis
-- Call `getBrokerMetrics()` for detailed broker metrics
-- Check for error patterns in logs
+当用户请求深度分析时：
+- 调用 `analyzeBrokerLogs()` 进行日志分析
+- 调用 `getBrokerMetrics()` 获取详细Broker指标
+- 检查日志中的错误模式
 
-## Red Flags
+## 警告信号
 
-- Zero active brokers
-- All bookies read-only
-- High error rates in logs
-- Memory/CPU critical levels
+- 零活跃Broker
+- 所有Bookie只读
+- 日志中错误率高
+- 内存/CPU达到严重级别

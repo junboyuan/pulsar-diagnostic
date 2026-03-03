@@ -1,87 +1,87 @@
 ---
 name: connectivity-troubleshoot
-description: Use when troubleshooting connection and network issues in the cluster
+description: 用于排查集群中的连接和网络问题
 ---
 
-# Connectivity Troubleshoot Skill
+# 连接故障排查技能
 
-## Overview
+## 概述
 
-Diagnose and resolve connection issues in Apache Pulsar clusters.
+诊断和解决Apache Pulsar集群中的连接问题。
 
-## When to Use
+## 适用场景
 
-Use this skill when:
-- Clients cannot connect to brokers
-- Connection timeout errors
-- Authentication/authorization failures
-- Network partition issues
+在以下情况下使用此技能：
+- 客户端无法连接到Broker
+- 连接超时错误
+- 认证/授权失败
+- 网络分区问题
 
-## Process
+## 处理流程
 
-### 1. Verify Cluster Status
+### 1. 验证集群状态
 
-First check basic cluster health:
+首先检查基本集群健康状况：
 ```
 getClusterInfo() → performHealthCheck() → getActiveBrokers()
 ```
 
-### 2. Diagnose Connection Issues
+### 2. 诊断连接问题
 
-Use `diagnoseConnectionIssues()` to get specific diagnosis.
+使用 `diagnoseConnectionIssues()` 获取具体诊断。
 
-Common issues to investigate:
-- **Broker unreachable**: Check if brokers are running
-- **DNS resolution**: Verify broker URLs are correct
-- **Port accessibility**: Check firewall rules
-- **TLS/SSL**: Verify certificates
+需要调查的常见问题：
+- **Broker不可达**：检查Broker是否运行
+- **DNS解析**：验证Broker URL是否正确
+- **端口可访问性**：检查防火墙规则
+- **TLS/SSL**：验证证书
 
-### 3. Check Authentication
+### 3. 检查认证
 
-If auth errors:
-- Verify token validity
-- Check role permissions
-- Review authentication plugin configuration
+如果出现认证错误：
+- 验证令牌有效性
+- 检查角色权限
+- 检查认证插件配置
 
-### 4. Provide Troubleshooting Steps
+### 4. 提供故障排查步骤
 
 ```
-## Connectivity Troubleshooting Report
+## 连接故障排查报告
 
-### Issue Type: [Connection/Auth/Network]
+### 问题类型：[连接/认证/网络]
 
-### Diagnosis
-[Root cause identified]
+### 诊断结果
+[识别的根本原因]
 
-### Steps to Resolve
-1. [Step 1]
-2. [Step 2]
-3. [Step 3]
+### 解决步骤
+1. [步骤1]
+2. [步骤2]
+3. [步骤3]
 
-### Verification
-[How to verify the fix worked]
+### 验证方法
+[如何验证修复成功]
 ```
 
-## Available Tools
+## 可用工具
 
-| Tool | Purpose |
-|------|---------|
-| `getClusterInfo` | Verify cluster is accessible |
-| `performHealthCheck` | Check component health |
-| `getActiveBrokers` | List reachable brokers |
-| `diagnoseConnectionIssues` | Specialized connection diagnosis |
+| 工具 | 用途 |
+|------|------|
+| `getClusterInfo` | 验证集群可访问性 |
+| `performHealthCheck` | 检查组件健康 |
+| `getActiveBrokers` | 列出可达的Broker |
+| `diagnoseConnectionIssues` | 专门的连接诊断 |
 
-## Common Error Codes
+## 常见错误码
 
-| Error | Likely Cause | Solution |
+| 错误 | 可能原因 | 解决方案 |
 |-------|--------------|----------|
-| Connection refused | Broker down | Restart broker |
-| Timeout | Network issue | Check firewall/network |
-| Auth failed | Invalid credentials | Verify token/permissions |
-| SSL error | Certificate issue | Renew/fix certificates |
+| 连接被拒绝 | Broker宕机 | 重启Broker |
+| 超时 | 网络问题 | 检查防火墙/网络 |
+| 认证失败 | 凭据无效 | 验证令牌/权限 |
+| SSL错误 | 证书问题 | 更新/修复证书 |
 
-## Red Flags
+## 警告信号
 
-- Zero active brokers reachable
-- All connections timing out
-- Authentication failures after config change
+- 零个活跃Broker可达
+- 所有连接超时
+- 配置更改后认证失败

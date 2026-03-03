@@ -1,108 +1,108 @@
 ---
 name: topic-consultation
-description: Use when providing consultation on topic design, configuration, and optimization
+description: 用于提供主题设计、配置和优化咨询
 ---
 
-# Topic Consultation Skill
+# 主题咨询技能
 
-## Overview
+## 概述
 
-Provide expert consultation on Apache Pulsar topic design, configuration, and optimization.
+提供Apache Pulsar主题设计、配置和优化方面的专业咨询。
 
-## When to Use
+## 适用场景
 
-Use this skill when:
-- Designing new topics
-- Optimizing existing topics
-- Choosing partition strategies
-- Setting retention policies
+在以下情况下使用此技能：
+- 设计新主题
+- 优化现有主题
+- 选择分区策略
+- 设置保留策略
 
-## Process
+## 处理流程
 
-### 1. Understand Requirements
+### 1. 了解需求
 
-Ask clarifying questions:
-- Expected throughput?
-- Number of producers/consumers?
-- Message size?
-- Retention requirements?
-- Ordering guarantees needed?
+询问明确的问题：
+- 预期吞吐量？
+- 生产者/消费者数量？
+- 消息大小？
+- 保留要求？
+- 需要顺序保证吗？
 
-### 2. Analyze Existing Topic (if applicable)
+### 2. 分析现有主题（如适用）
 
-For existing topics:
+对于现有主题：
 ```
 getTopicInfo(topic) → getTopicStats(topic) → getTopicSubscriptions(topic)
 ```
 
-### 3. Provide Recommendations
+### 3. 提供建议
 
 ```
-## Topic Consultation Report
+## 主题咨询报告
 
-### Current State (if existing)
-- Topic: [name]
-- Partitions: X
-- Throughput: X msg/s
-- Subscriptions: Y
+### 当前状态（如已存在）
+- 主题：[名称]
+- 分区数：X
+- 吞吐量：X 条/秒
+- 订阅数：Y
 
-### Recommendations
+### 建议
 
-#### Partitioning
-- Current: X partitions
-- Recommended: Y partitions
-- Reasoning: [explanation]
+#### 分区策略
+- 当前：X个分区
+- 建议：Y个分区
+- 原因：[解释]
 
-#### Retention Policy
-- Recommended: [size/time based]
-- Reasoning: [explanation]
+#### 保留策略
+- 建议：[基于大小/时间]
+- 原因：[解释]
 
-#### Configuration
-- maxMessageSize: X KB
-- ttlDuration: Y hours
-- retentionSize: Z GB
+#### 配置建议
+- maxMessageSize：X KB
+- ttlDuration：Y 小时
+- retentionSize：Z GB
 
-#### Best Practices
-1. [Practice 1]
-2. [Practice 2]
+#### 最佳实践
+1. [实践1]
+2. [实践2]
 
-### Naming Convention
-Suggested: persistent://[tenant]/[namespace]/[domain]-[entity]-[event-type]
+### 命名规范
+建议格式：persistent://[租户]/[命名空间]/[域]-[实体]-[事件类型]
 ```
 
-## Available Tools
+## 可用工具
 
-| Tool | Purpose |
-|------|---------|
-| `getTopicInfo` | Get topic configuration |
-| `getTopicStats` | Get topic statistics |
-| `getTopicSubscriptions` | List subscriptions |
-| `listTopicsInNamespace` | List all topics |
+| 工具 | 用途 |
+|------|------|
+| `getTopicInfo` | 获取主题配置 |
+| `getTopicStats` | 获取主题统计 |
+| `getTopicSubscriptions` | 列出订阅 |
+| `listTopicsInNamespace` | 列出所有主题 |
 
-## Decision Matrix
+## 决策矩阵
 
-### Partitioning Strategy
+### 分区策略
 
-| Scenario | Recommendation |
+| 场景 | 建议 |
 |----------|----------------|
-| High throughput | Multiple partitions |
-| Strict ordering | Single partition |
-| Many consumers | Partition by key |
-| Global consumers | Round-robin |
+| 高吞吐量 | 多分区 |
+| 严格顺序 | 单分区 |
+| 多消费者 | 按键分区 |
+| 全局消费者 | 轮询 |
 
-### Retention Policy
+### 保留策略
 
-| Use Case | Recommendation |
+| 用例 | 建议 |
 |----------|----------------|
-| Event streaming | Time-based (7-30 days) |
-| Log aggregation | Size-based (100GB+) |
-| Work queues | Ack-based deletion |
-| Audit trail | Indefinite retention |
+| 事件流 | 基于时间（7-30天） |
+| 日志聚合 | 基于大小（100GB+） |
+| 工作队列 | 基于确认删除 |
+| 审计追踪 | 无限期保留 |
 
-## Common Mistakes to Avoid
+## 需要避免的常见错误
 
-- Too few partitions (bottleneck)
-- Too many partitions (overhead)
-- No retention policy (disk full)
-- Wrong subscription type
-- Missing schema validation
+- 分区太少（瓶颈）
+- 分区太多（开销）
+- 无保留策略（磁盘满）
+- 错误的订阅类型
+- 缺少Schema验证

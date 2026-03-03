@@ -1,104 +1,104 @@
 ---
 name: capacity-planning
-description: Use when analyzing cluster capacity and providing scaling recommendations
+description: 用于分析集群容量并提供扩容建议
 ---
 
-# Capacity Planning Skill
+# 容量规划技能
 
-## Overview
+## 概述
 
-Analyze current cluster capacity and provide recommendations for scaling and growth planning.
+分析当前集群容量并提供扩容和增长规划建议。
 
-## When to Use
+## 适用场景
 
-Use this skill when:
-- Planning for growth
-- Evaluating resource needs
-- Before adding new workloads
-- Regular capacity reviews
+在以下情况下使用此技能：
+- 规划增长
+- 评估资源需求
+- 添加新工作负载前
+- 定期容量评估
 
-## Process
+## 处理流程
 
-### 1. Collect Current State
+### 1. 收集当前状态
 
-Gather current capacity data:
+收集当前容量数据：
 ```
 getClusterInfo() → getClusterMetrics() → getBrokerMetrics() → getAllMetrics()
 ```
 
-### 2. Analyze Utilization
+### 2. 分析利用率
 
-Calculate current utilization:
-- Broker count vs recommended
-- Topics/partitions per broker
-- Connections per broker
-- Storage utilization
-- Throughput per broker
+计算当前利用率：
+- Broker数量与推荐数量
+- 每个Broker的主题/分区数
+- 每个Broker的连接数
+- 存储利用率
+- 每个Broker的吞吐量
 
-### 3. Project Growth
+### 3. 增长预测
 
-Estimate future needs:
+估算未来需求：
 ```
-Current Growth Rate: X% per month
-Projected in 6 months:
-- Messages: Current * (1 + X% * 6)
-- Storage: Current * (1 + X% * 6)
-- Connections: Current * (1 + X% * 6)
-```
-
-### 4. Provide Recommendations
-
-```
-## Capacity Planning Report
-
-### Current Utilization
-- Brokers: X/Y (Z% utilized)
-- Storage: X TB / Y TB (Z%)
-- Connections: X/Y per broker
-- Throughput: X msg/s capacity, Y msg/s used
-
-### Growth Projection
-- 3 months: [projected needs]
-- 6 months: [projected needs]
-- 12 months: [projected needs]
-
-### Recommendations
-
-#### Immediate
-- [Action items needed now]
-
-#### Short-term (1-3 months)
-- [Actions for near term]
-
-#### Long-term (6-12 months)
-- [Strategic planning items]
-
-### Scaling Options
-1. Horizontal: Add X brokers
-2. Vertical: Increase Y resources
+当前增长率：每月X%
+6个月预测：
+- 消息：当前 * (1 + X% * 6)
+- 存储：当前 * (1 + X% * 6)
+- 连接：当前 * (1 + X% * 6)
 ```
 
-## Available Tools
+### 4. 提供建议
 
-| Tool | Purpose |
-|------|---------|
-| `getClusterInfo` | Current cluster structure |
-| `getClusterMetrics` | Throughput and connections |
-| `getBrokerMetrics` | Per-broker utilization |
-| `getAllMetrics` | All capacity metrics |
+```
+## 容量规划报告
 
-## Key Metrics
+### 当前利用率
+- Broker：X/Y（Z%利用率）
+- 存储：X TB / Y TB（Z%）
+- 连接：每个Broker X/Y
+- 吞吐量：容量 X 条/秒，使用 Y 条/秒
 
-| Metric | Warning | Scale Threshold |
-|--------|---------|-----------------|
+### 增长预测
+- 3个月：[预测需求]
+- 6个月：[预测需求]
+- 12个月：[预测需求]
+
+### 建议措施
+
+#### 立即
+- [现在需要的行动项]
+
+#### 短期（1-3个月）
+- [近期行动]
+
+#### 长期（6-12个月）
+- [战略规划项]
+
+### 扩容选项
+1. 水平扩容：增加X个Broker
+2. 垂直扩容：增加Y资源
+```
+
+## 可用工具
+
+| 工具 | 用途 |
+|------|------|
+| `getClusterInfo` | 当前集群结构 |
+| `getClusterMetrics` | 吞吐量和连接数 |
+| `getBrokerMetrics` | 每个Broker的利用率 |
+| `getAllMetrics` | 所有容量指标 |
+
+## 关键指标
+
+| 指标 | 警告 | 扩容阈值 |
+|------|---------|-----------------|
 | Broker CPU | > 70% | > 80% |
-| Broker Memory | > 75% | > 85% |
-| Connections/broker | > 3000 | > 5000 |
-| Topics/broker | > 3000 | > 5000 |
-| Storage used | > 70% | > 85% |
+| Broker内存 | > 75% | > 85% |
+| 连接数/Broker | > 3000 | > 5000 |
+| 主题数/Broker | > 3000 | > 5000 |
+| 存储使用 | > 70% | > 85% |
 
-## Scaling Guidelines
+## 扩容指南
 
-- **Horizontal scaling**: Add brokers when load is evenly distributed
-- **Vertical scaling**: Increase resources when few brokers are overloaded
-- **Storage scaling**: Add bookies or increase disk capacity
+- **水平扩容**：当负载均匀分布时添加Broker
+- **垂直扩容**：当少数Broker过载时增加资源
+- **存储扩容**：添加Bookie或增加磁盘容量

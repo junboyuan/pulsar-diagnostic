@@ -1,103 +1,103 @@
 ---
 name: performance-analysis
-description: Use when analyzing cluster performance and identifying bottlenecks
+description: 用于分析集群性能并识别瓶颈
 ---
 
-# Performance Analysis Skill
+# 性能分析技能
 
-## Overview
+## 概述
 
-Analyze Apache Pulsar cluster performance, identify bottlenecks, and provide optimization recommendations.
+分析Apache Pulsar集群性能，识别瓶颈并提供优化建议。
 
-## When to Use
+## 适用场景
 
-Use this skill when:
-- User reports slow performance
-- Throughput issues
-- High latency complaints
-- Resource utilization concerns
+在以下情况下使用此技能：
+- 用户报告性能缓慢
+- 吞吐量问题
+- 高延迟投诉
+- 资源利用率关注
 
-## Process
+## 处理流程
 
-### 1. Collect Performance Metrics
+### 1. 收集性能指标
 
-Gather data using:
+使用以下工具收集数据：
 ```
 getClusterMetrics() → getBrokerMetrics() → getAllMetrics()
 ```
 
-Key metrics to analyze:
-- Message throughput (in/out rates)
-- End-to-end latency
-- Broker CPU/memory usage
-- Bookie disk I/O
-- Network bandwidth
+需要分析的关键指标：
+- 消息吞吐量（入/出速率）
+- 端到端延迟
+- Broker CPU/内存使用
+- Bookie磁盘I/O
+- 网络带宽
 
-### 2. Identify Bottlenecks
+### 2. 识别瓶颈
 
-Check for common bottlenecks:
+检查常见瓶颈：
 
-| Metric | Warning | Critical |
-|--------|---------|----------|
-| Message backlog | > 10K messages | > 100K messages |
+| 指标 | 警告 | 严重 |
+|------|------|------|
+| 消息积压 | > 1万条 | > 10万条 |
 | Broker CPU | > 70% | > 90% |
-| Broker memory | > 80% | > 95% |
-| Disk I/O | > 80% | > 95% |
-| Latency P99 | > 100ms | > 500ms |
+| Broker内存 | > 80% | > 95% |
+| 磁盘I/O | > 80% | > 95% |
+| 延迟P99 | > 100ms | > 500ms |
 
-### 3. Analyze Patterns
+### 3. 分析模式
 
-Look for:
-- **Throughput imbalance**: Messages in ≠ messages out
-- **Hot brokers**: Uneven load distribution
-- **Slow consumers**: High backlog on specific subscriptions
-- **Resource saturation**: Any metric at capacity
+查找以下问题：
+- **吞吐量不平衡**：消息入 ≠ 消息出
+- **热点Broker**：负载分布不均
+- **慢消费者**：特定订阅高积压
+- **资源饱和**：任何指标达到容量
 
-### 4. Generate Report
+### 4. 生成报告
 
 ```
-## Performance Analysis Report
+## 性能分析报告
 
-### Summary
-- Overall throughput: X msg/s in, Y msg/s out
-- Average latency: Xms
-- Peak latency (P99): Yms
+### 摘要
+- 整体吞吐量：入 X 条/秒，出 Y 条/秒
+- 平均延迟：Xms
+- 峰值延迟(P99)：Yms
 
-### Findings
-1. [Finding 1 with metrics]
-2. [Finding 2 with metrics]
+### 发现
+1. [发现1及指标]
+2. [发现2及指标]
 
-### Bottlenecks Identified
-- [Component]: [Issue]
-- [Component]: [Issue]
+### 识别的瓶颈
+- [组件]：[问题]
+- [组件]：[问题]
 
-### Recommendations
-1. [Priority 1 recommendation]
-2. [Priority 2 recommendation]
+### 建议措施
+1. [优先级1建议]
+2. [优先级2建议]
 ```
 
-## Available Tools
+## 可用工具
 
-| Tool | Purpose |
-|------|---------|
-| `getClusterMetrics` | Cluster-wide throughput and latency |
-| `getBrokerMetrics` | Per-broker performance |
-| `getAllMetrics` | All available Prometheus metrics |
-| `queryMetric` | Query specific Prometheus metric |
+| 工具 | 用途 |
+|------|------|
+| `getClusterMetrics` | 集群范围吞吐量和延迟 |
+| `getBrokerMetrics` | 每个Broker的性能 |
+| `getAllMetrics` | 所有可用的Prometheus指标 |
+| `queryMetric` | 查询特定Prometheus指标 |
 
-## Common Issues
+## 常见问题
 
-### Slow Producers
-- Check network latency
-- Verify producer batch settings
-- Review message size
+### 生产者慢
+- 检查网络延迟
+- 验证生产者批处理设置
+- 检查消息大小
 
-### Slow Consumers
-- Check subscription type
-- Verify consumer batch settings
-- Review processing logic
+### 消费者慢
+- 检查订阅类型
+- 验证消费者批处理设置
+- 检查处理逻辑
 
-### Broker Overload
-- Check topic distribution
-- Review bundle split policies
-- Consider scaling
+### Broker过载
+- 检查主题分布
+- 检查Bundle分割策略
+- 考虑扩容
