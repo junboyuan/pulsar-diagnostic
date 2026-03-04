@@ -6,6 +6,8 @@ import com.pulsar.diagnostic.common.model.TopicInfo;
 import com.pulsar.diagnostic.core.admin.PulsarAdminClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -32,7 +34,8 @@ public class TopicInfoTool {
      * Get detailed information about a specific Pulsar topic
      * @param topicName Full topic name in format: persistent://tenant/namespace/topic
      */
-    public String getTopicInfo(String topicName) {
+    @Tool(description = "Get detailed information about a specific Pulsar topic. Input: topic name (e.g., persistent://tenant/namespace/topic)")
+    public String getTopicInfo(@ToolParam(description = "Full topic name in format: persistent://tenant/namespace/topic") String topicName) {
         log.info("Tool: Getting topic info for: {} via MCP", topicName);
         try {
             // Use MCP diagnose_topic tool
@@ -56,7 +59,8 @@ public class TopicInfoTool {
      * Get statistics for a specific topic including message rates and throughput
      * @param topicName Full topic name in format: persistent://tenant/namespace/topic
      */
-    public String getTopicStats(String topicName) {
+    @Tool(description = "Get statistics for a specific Pulsar topic. Input: topic name")
+    public String getTopicStats(@ToolParam(description = "Full topic name") String topicName) {
         log.info("Tool: Getting topic stats for: {}", topicName);
         try {
             TopicInfo.TopicStats stats = pulsarAdminClient.getTopicStats(topicName);
@@ -70,7 +74,8 @@ public class TopicInfoTool {
      * List all topics in a namespace
      * @param namespace Namespace name in format: tenant/namespace
      */
-    public String listTopicsInNamespace(String namespace) {
+    @Tool(description = "List all topics in a namespace. Input: namespace name (e.g., tenant/namespace)")
+    public String listTopicsInNamespace(@ToolParam(description = "Namespace name in format: tenant/namespace") String namespace) {
         log.info("Tool: Listing topics in namespace: {}", namespace);
         try {
             List<String> topics = pulsarAdminClient.getTopics(namespace);
@@ -93,7 +98,8 @@ public class TopicInfoTool {
      * Get subscriptions for a specific topic
      * @param topicName Full topic name
      */
-    public String getTopicSubscriptions(String topicName) {
+    @Tool(description = "Get all subscriptions for a specific Pulsar topic. Input: topic name")
+    public String getTopicSubscriptions(@ToolParam(description = "Full topic name") String topicName) {
         log.info("Tool: Getting subscriptions for topic: {} via MCP", topicName);
         try {
             // Use MCP diagnose_topic tool with subscription check
@@ -130,7 +136,8 @@ public class TopicInfoTool {
      * Check if a topic has message backlog (unconsumed messages)
      * @param topicName Full topic name
      */
-    public String checkTopicBacklog(String topicName) {
+    @Tool(description = "Check backlog status for a specific Pulsar topic. Input: topic name")
+    public String checkTopicBacklog(@ToolParam(description = "Full topic name") String topicName) {
         log.info("Tool: Checking backlog for topic: {} via MCP", topicName);
         try {
             return mcpClient.callToolSync("diagnose_topic",

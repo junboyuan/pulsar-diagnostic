@@ -7,16 +7,17 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
 
 /**
- * Configuration for AI components and MCP integration
+ * Configuration for AI components and MCP integration.
+ * Tools are registered via ToolConfig's ToolCallback beans.
  */
 @Configuration
 public class AIConfig {
 
     /**
-     * Create ChatClient bean for conversational AI
+     * Create ChatClient bean for conversational AI.
+     * Tools from ToolConfig are automatically registered by Spring AI.
      */
     @Bean
     public ChatClient chatClient(ChatModel chatModel) {

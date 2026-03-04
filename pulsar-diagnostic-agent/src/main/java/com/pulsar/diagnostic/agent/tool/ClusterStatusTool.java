@@ -7,6 +7,8 @@ import com.pulsar.diagnostic.core.health.ClusterHealth;
 import com.pulsar.diagnostic.core.health.HealthCheckService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -36,6 +38,7 @@ public class ClusterStatusTool {
     /**
      * Get overall Pulsar cluster information including brokers, bookies, and health status
      */
+    @Tool(description = "Get overall Pulsar cluster information including brokers, bookies, and health status. No input required.")
     public String getClusterInfo() {
         log.info("Tool: Getting cluster info via MCP");
         try {
@@ -57,6 +60,7 @@ public class ClusterStatusTool {
     /**
      * Perform a comprehensive health check on the Pulsar cluster
      */
+    @Tool(description = "Perform a comprehensive health check on the Pulsar cluster. No input required.")
     public String performHealthCheck() {
         log.info("Tool: Performing health check");
         try {
@@ -71,6 +75,7 @@ public class ClusterStatusTool {
     /**
      * Quick check if the Pulsar cluster is healthy
      */
+    @Tool(description = "Quick check if the Pulsar cluster is healthy. No input required.")
     public String isClusterHealthy() {
         log.info("Tool: Quick health check");
         try {
@@ -84,6 +89,7 @@ public class ClusterStatusTool {
     /**
      * Get list of all active brokers in the cluster
      */
+    @Tool(description = "Get list of all active brokers in the cluster. No input required.")
     public String getActiveBrokers() {
         log.info("Tool: Getting active brokers via MCP");
         try {
@@ -112,6 +118,7 @@ public class ClusterStatusTool {
     /**
      * Get list of all bookies (BookKeeper nodes) in the cluster
      */
+    @Tool(description = "Get list of all bookies (BookKeeper nodes) in the cluster. No input required.")
     public String getBookies() {
         log.info("Tool: Getting bookies via MCP");
         try {

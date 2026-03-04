@@ -5,6 +5,8 @@ import com.pulsar.diagnostic.core.metrics.PrometheusMetricsCollector;
 import com.pulsar.diagnostic.common.model.MetricData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -30,6 +32,7 @@ public class BrokerMetricsTool {
     /**
      * Get cluster-level metrics summary including throughput, backlog, and connections
      */
+    @Tool(description = "Get cluster-wide metrics from Prometheus. No input required.")
     public String getClusterMetrics() {
         log.info("Tool: Getting cluster metrics via MCP");
         try {
@@ -70,7 +73,8 @@ public class BrokerMetricsTool {
      * Query a specific Prometheus metric
      * @param query Prometheus query expression
      */
-    public String queryMetric(String query) {
+    @Tool(description = "Query a specific Prometheus metric using PromQL. Input: PromQL query string")
+    public String queryMetric(@ToolParam(description = "PromQL query string") String query) {
         log.info("Tool: Querying metric via MCP: {}", query);
         try {
             return mcpClient.callToolSync("query_metrics",
@@ -111,6 +115,7 @@ public class BrokerMetricsTool {
     /**
      * Get metrics for all brokers in the cluster
      */
+    @Tool(description = "Get metrics for all brokers in the cluster. No input required.")
     public String getBrokerMetrics() {
         log.info("Tool: Getting broker metrics");
         try {
@@ -145,6 +150,7 @@ public class BrokerMetricsTool {
     /**
      * Get all key Pulsar metrics at once
      */
+    @Tool(description = "Get all available Pulsar metrics. No input required.")
     public String getAllMetrics() {
         log.info("Tool: Getting all Pulsar metrics");
         try {
@@ -176,6 +182,7 @@ public class BrokerMetricsTool {
     /**
      * Check if Prometheus metrics endpoint is available
      */
+    @Tool(description = "Check if Prometheus metrics are available. No input required.")
     public String checkMetricsAvailable() {
         log.info("Tool: Checking metrics availability");
         boolean available = metricsCollector.isAvailable();

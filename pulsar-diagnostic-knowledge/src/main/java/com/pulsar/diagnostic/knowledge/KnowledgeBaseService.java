@@ -97,7 +97,7 @@ public class KnowledgeBaseService {
         List<Document> results = vectorStore.search(query, topK);
 
         return results.stream()
-                .map(Document::getContent)
+                .map(doc -> doc.getText())
                 .collect(Collectors.toList());
     }
 
@@ -115,7 +115,7 @@ public class KnowledgeBaseService {
         List<KnowledgeItem> items = results.stream()
                 .map(doc -> new KnowledgeItem(
                         doc.getId(),
-                        doc.getContent(),
+                        doc.getText(),
                         doc.getMetadata()
                 ))
                 .collect(Collectors.toList());
@@ -140,7 +140,7 @@ public class KnowledgeBaseService {
                 query, topK, Map.of("category", category));
 
         return results.stream()
-                .map(Document::getContent)
+                .map(doc -> doc.getText())
                 .collect(Collectors.toList());
     }
 

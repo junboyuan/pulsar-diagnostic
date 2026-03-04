@@ -64,9 +64,11 @@ public class KnowledgeVectorStore {
         log.debug("Searching for: {} (topK={}, threshold={})", query, topK, similarityThreshold);
 
         try {
-            SearchRequest request = SearchRequest.query(query)
-                    .withTopK(topK)
-                    .withSimilarityThreshold(similarityThreshold);
+            SearchRequest request = SearchRequest.builder()
+                    .query(query)
+                    .topK(topK)
+                    .similarityThreshold(similarityThreshold)
+                    .build();
 
             return vectorStore.similaritySearch(request);
         } catch (Exception e) {
@@ -84,9 +86,11 @@ public class KnowledgeVectorStore {
         }
 
         try {
-            SearchRequest request = SearchRequest.query(query)
-                    .withTopK(topK)
-                    .withFilterExpression(buildFilterExpression(filter));
+            SearchRequest request = SearchRequest.builder()
+                    .query(query)
+                    .topK(topK)
+                    .filterExpression(buildFilterExpression(filter))
+                    .build();
 
             return vectorStore.similaritySearch(request);
         } catch (Exception e) {

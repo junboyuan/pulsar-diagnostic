@@ -14,6 +14,8 @@ import com.pulsar.diagnostic.core.logs.LogAnalysisService;
 import com.pulsar.diagnostic.core.metrics.PrometheusMetricsCollector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -52,7 +54,9 @@ public class DiagnosticTool {
      * @param resource Topic or namespace to diagnose
      * @param resourceType Resource type: 'topic' or 'namespace'
      */
-    public String diagnoseBacklogIssue(String resource, String resourceType) {
+    @Tool(description = "Diagnose message backlog issues for a topic or namespace. Input: 'resource|resourceType' where resourceType is 'topic' or 'namespace' (default: topic)")
+    public String diagnoseBacklogIssue(@ToolParam(description = "Topic or namespace to diagnose") String resource,
+                                        @ToolParam(description = "Resource type: 'topic' or 'namespace', default 'topic'", required = false) String resourceType) {
         log.info("Tool: Diagnosing backlog issue for: {}", resource);
 
         try {
@@ -111,6 +115,7 @@ public class DiagnosticTool {
     /**
      * Diagnose connection issues in the cluster
      */
+    @Tool(description = "Diagnose connection issues in the Pulsar cluster. No input required.")
     public String diagnoseConnectionIssues() {
         log.info("Tool: Diagnosing connection issues");
 
@@ -175,6 +180,7 @@ public class DiagnosticTool {
     /**
      * Diagnose performance issues in the cluster
      */
+    @Tool(description = "Diagnose performance issues in the Pulsar cluster. No input required.")
     public String diagnosePerformanceIssues() {
         log.info("Tool: Diagnosing performance issues");
 
@@ -247,6 +253,7 @@ public class DiagnosticTool {
     /**
      * Run comprehensive diagnostic on the entire cluster
      */
+    @Tool(description = "Run a comprehensive diagnostic on the entire cluster. No input required.")
     public String runComprehensiveDiagnostic() {
         log.info("Tool: Running comprehensive diagnostic via MCP");
 

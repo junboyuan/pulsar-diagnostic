@@ -11,6 +11,8 @@ import com.pulsar.diagnostic.core.logs.LogAnalysisService;
 import com.pulsar.diagnostic.core.metrics.PrometheusMetricsCollector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -49,6 +51,7 @@ public class InspectionTool {
     /**
      * Perform a comprehensive cluster inspection covering all components
      */
+    @Tool(description = "Perform a full cluster inspection. No input required.")
     public String performFullInspection() {
         log.info("Tool: Performing full cluster inspection via MCP");
         try {
@@ -65,7 +68,8 @@ public class InspectionTool {
      * Perform cluster inspection focused on specific areas
      * @param focusArea Focus areas: 'brokers', 'bookies', 'topics', 'performance', 'logs', or null for full inspection
      */
-    public String performInspection(String focusArea) {
+    @Tool(description = "Perform a focused inspection on a specific area. Input: focus area (e.g., 'brokers', 'topics', 'performance')")
+    public String performInspection(@ToolParam(description = "Focus area: 'brokers', 'bookies', 'topics', 'performance', 'logs', or null for full inspection", required = false) String focusArea) {
         log.info("Tool: Performing inspection with focus: {}", focusArea);
 
         List<InspectionReport.InspectionItem> items = new ArrayList<>();
@@ -105,6 +109,7 @@ public class InspectionTool {
     /**
      * Quick health snapshot of the cluster
      */
+    @Tool(description = "Get a quick health snapshot of the cluster. No input required.")
     public String quickHealthSnapshot() {
         log.info("Tool: Quick health snapshot via MCP");
         try {

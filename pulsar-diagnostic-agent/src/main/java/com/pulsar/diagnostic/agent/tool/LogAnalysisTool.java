@@ -6,6 +6,8 @@ import com.pulsar.diagnostic.core.logs.LogAnalysisService;
 import com.pulsar.diagnostic.core.logs.LogFileReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -36,7 +38,8 @@ public class LogAnalysisTool {
      * Analyze broker logs for errors and warnings
      * @param maxLines Maximum number of lines to analyze
      */
-    public String analyzeBrokerLogs(Integer maxLines) {
+    @Tool(description = "Analyze Pulsar broker logs for errors and patterns. Input: max number of lines (optional, default 500)")
+    public String analyzeBrokerLogs(@ToolParam(description = "Maximum number of lines to analyze, default 500", required = false) Integer maxLines) {
         log.info("Tool: Analyzing broker logs via MCP");
         int lines = maxLines != null ? maxLines : 1000;
 
@@ -61,7 +64,8 @@ public class LogAnalysisTool {
      * Analyze bookie (BookKeeper) logs for errors and warnings
      * @param maxLines Maximum number of lines to analyze
      */
-    public String analyzeBookieLogs(Integer maxLines) {
+    @Tool(description = "Analyze BookKeeper bookie logs for errors and patterns. Input: max number of lines (optional, default 500)")
+    public String analyzeBookieLogs(@ToolParam(description = "Maximum number of lines to analyze, default 500", required = false) Integer maxLines) {
         log.info("Tool: Analyzing bookie logs via MCP");
         int lines = maxLines != null ? maxLines : 1000;
 
@@ -87,7 +91,9 @@ public class LogAnalysisTool {
      * @param pattern Search pattern or keyword
      * @param maxResults Maximum results per log file
      */
-    public String searchAllLogs(String pattern, Integer maxResults) {
+    @Tool(description = "Search for a specific pattern in all Pulsar logs. Input: search pattern")
+    public String searchAllLogs(@ToolParam(description = "Search pattern or keyword") String pattern,
+                                 @ToolParam(description = "Maximum results per log file, default 100", required = false) Integer maxResults) {
         log.info("Tool: Searching logs for: {}", pattern);
         int max = maxResults != null ? maxResults : 100;
 
@@ -125,7 +131,8 @@ public class LogAnalysisTool {
      * Get recent errors from all Pulsar components
      * @param maxErrors Maximum errors to retrieve per component
      */
-    public String getRecentErrors(Integer maxErrors) {
+    @Tool(description = "Get recent error messages from all logs. Input: max number of errors to return (optional, default 50)")
+    public String getRecentErrors(@ToolParam(description = "Maximum errors to retrieve per component, default 50", required = false) Integer maxErrors) {
         log.info("Tool: Getting recent errors");
         int max = maxErrors != null ? maxErrors : 50;
 
@@ -170,7 +177,9 @@ public class LogAnalysisTool {
      * @param filePath Path to the log file
      * @param lines Number of lines to read
      */
-    public String tailLogFile(String filePath, Integer lines) {
+    @Tool(description = "Read the last N lines from a specific log file. Input: file path and number of lines")
+    public String tailLogFile(@ToolParam(description = "Path to the log file") String filePath,
+                               @ToolParam(description = "Number of lines to read, default 100", required = false) Integer lines) {
         log.info("Tool: Tailing log file: {}", filePath);
         int lineCount = lines != null ? lines : 100;
 

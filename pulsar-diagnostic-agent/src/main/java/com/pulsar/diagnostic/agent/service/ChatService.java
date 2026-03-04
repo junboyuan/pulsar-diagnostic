@@ -4,8 +4,6 @@ import com.pulsar.diagnostic.agent.dto.QAResponse;
 import com.pulsar.diagnostic.agent.intent.IntentRecognizer;
 import com.pulsar.diagnostic.agent.intent.IntentResult;
 import com.pulsar.diagnostic.agent.prompt.PromptTemplates;
-import com.pulsar.diagnostic.agent.skill.declarative.SkillExecutor;
-import com.pulsar.diagnostic.agent.skill.declarative.SkillExecutionResult;
 import com.pulsar.diagnostic.knowledge.KnowledgeBaseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,12 +15,12 @@ import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 聊天服务
  *
  * 处理用户聊天消息，包含意图识别、技能路由和知识问答
+ * SkillsTool已通过AIConfig注册到ChatClient，LLM可自动调用工具
  */
 @Service
 public class ChatService {
@@ -33,20 +31,17 @@ public class ChatService {
     private final KnowledgeBaseService knowledgeBaseService;
     private final PromptTemplates promptTemplates;
     private final IntentRecognizer intentRecognizer;
-    private final SkillExecutor skillExecutor;
     private final KnowledgeQAService knowledgeQAService;
 
     public ChatService(ChatClient chatClient,
                        KnowledgeBaseService knowledgeBaseService,
                        PromptTemplates promptTemplates,
                        IntentRecognizer intentRecognizer,
-                       SkillExecutor skillExecutor,
                        KnowledgeQAService knowledgeQAService) {
         this.chatClient = chatClient;
         this.knowledgeBaseService = knowledgeBaseService;
         this.promptTemplates = promptTemplates;
         this.intentRecognizer = intentRecognizer;
-        this.skillExecutor = skillExecutor;
         this.knowledgeQAService = knowledgeQAService;
     }
 
@@ -171,25 +166,43 @@ public class ChatService {
     }
 
     /**
-     * 处理技能执行
+     * 处理技能执行 - ChatClient会自动调用注册的工具（SkillsTool和ToolCallbacks）
      */
     private String handleSkillExecution(String userMessage, IntentResult intent) {
         log.info("执行技能: {}", intent.intent());
 
         try {
-            // 执行匹配的技能
-            SkillExecutionResult result = skillExecutor.execute(
-                    intent.intent(),
-                    userMessage,
-                    Map.of()
-            );
+            String knowledgeContext = getKnowledgeContext(userMessage);
 
-            if (result.success()) {
-                return formatSkillResponse(intent, result);
-            } else {
-                return "执行技能时遇到问题：" + result.error() +
-                       "\n\n让我尝试用通用方式帮您分析...";
+            // 构建包含意图信息的系统提示
+            String systemPrompt = promptTemplates.SYSTEM_PROMPT + "\n\n" +
+                    "当前任务类型: " + getIntentDisplayName(intent.intent()) + "\n" +
+                    "分析理由: " + intent.reasoning();
+
+            if (knowledgeContext != null && !knowledgeContext.isEmpty()) {
+                systemPrompt += "\n\n相关知识点：\n" + knowledgeContext;
             }
+
+            List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>();
+            messages.add(new SystemMessage(systemPrompt));
+            messages.add(new UserMessage(userMessage));
+
+            // ChatClient会自动调用注册的工具（SkillsTool和ToolCallbacks）
+            String response = chatClient.prompt()
+                    .messages(messages)
+                    .call()
+                    .content();
+
+            // 添加意图识别信息
+            StringBuilder sb = new StringBuilder();
+            sb.append("## 诊断结果\n\n");
+            sb.append("**识别意图**: ").append(getIntentDisplayName(intent.intent())).append("\n");
+            sb.append("**置信度**: ").append(String.format("%.0f%%", intent.confidence() * 100)).append("\n");
+            sb.append("**分析理由**: ").append(intent.reasoning()).append("\n\n");
+            sb.append("---\n\n");
+            sb.append(response);
+
+            return sb.toString();
 
         } catch (Exception e) {
             log.error("技能执行失败: {}", intent.intent(), e);
@@ -197,25 +210,6 @@ public class ChatService {
             return "技能执行遇到问题，让我尝试用其他方式帮您...\n\n" +
                    handleKnowledgeQA(userMessage, null);
         }
-    }
-
-    /**
-     * 格式化技能响应
-     */
-    private String formatSkillResponse(IntentResult intent, SkillExecutionResult result) {
-        StringBuilder sb = new StringBuilder();
-
-        // 添加意图识别信息（可选，用于调试）
-        sb.append("## 诊断结果\n\n");
-        sb.append("**识别意图**: ").append(getIntentDisplayName(intent.intent())).append("\n");
-        sb.append("**置信度**: ").append(String.format("%.0f%%", intent.confidence() * 100)).append("\n");
-        sb.append("**分析理由**: ").append(intent.reasoning()).append("\n\n");
-
-        // 添加技能输出
-        sb.append("---\n\n");
-        sb.append(result.output());
-
-        return sb.toString();
     }
 
     /**
