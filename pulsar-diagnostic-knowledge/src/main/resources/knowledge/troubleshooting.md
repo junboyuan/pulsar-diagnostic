@@ -1,342 +1,186 @@
-# Pulsar Troubleshooting Guide
+# Pulsar 故障诊断指南
 
-## Common Issues and Solutions
-
-### Connection Issues
-
-#### Problem: Client Cannot Connect to Broker
-**Symptoms:**
-- Connection refused errors
-- Timeout exceptions
-- Client unable to establish connection
-
-**Possible Causes:**
-1. Broker is not running
-2. Firewall blocking ports (6650 for broker, 8080 for admin)
-3. Incorrect broker URL configuration
-4. DNS resolution issues
-
-**Solutions:**
-1. Check broker status: `bin/pulsar-admin brokers healthcheck`
-2. Verify broker is listening: `netstat -tlnp | grep 6650`
-3. Check firewall rules: `iptables -L -n`
-4. Verify broker URL in client configuration matches advertised address
-
-#### Problem: Authentication Failed
-**Symptoms:**
-- Authentication errors in logs
-- Client connection rejected
-
-**Solutions:**
-1. Verify authentication is enabled in broker.conf
-2. Check client has correct authentication token
-3. Verify token hasn't expired
-4. Check authorization policies
+## 问题现象分类
 
 ---
 
-### Performance Issues
+## 1. 认证/鉴权问题 (auth-issue)
 
-#### Problem: High Message Latency
-**Symptoms:**
-- End-to-end latency increasing
-- Messages taking longer to process
-- Consumer lag growing
+### 问题: 认证失败
+**症状:**
+- 连接被拒绝，提示认证错误
+- 401/403 错误码
+- "Authentication failed" 日志
 
-**Possible Causes:**
-1. Consumer processing too slowly
-2. Network latency issues
-3. Broker overloaded
-4. BookKeeper write latency
+**可能原因:**
+1. 认证未启用但客户端尝试认证连接
+2. Token 无效或过期
+3. 认证插件配置错误
+4. TLS 证书问题
 
-**Solutions:**
-1. Check consumer processing time and optimize code
-2. Monitor network latency between components
-3. Scale brokers horizontally
-4. Check BookKeeper disk I/O performance
-5. Consider increasing consumer parallelism
+**解决方案:**
+1. 检查 broker.conf 中的 `authenticationEnabled`
+2. 验证 Token: `pulsar-admin tokens validate <token>`
+3. 检查认证插件配置
+4. 查看 Broker 日志中的认证错误详情
 
-#### Problem: Low Throughput
-**Symptoms:**
-- Message rate below expected
-- Backlog growing despite consumers
+### 问题: 权限不足
+**症状:**
+- 操作被拒绝
+- "Permission denied" 错误
+- 特定 Topic 无法访问
 
-**Solutions:**
-1. Increase partition count for topics
-2. Add more consumers to the subscription
-3. Check for consumer processing bottlenecks
-4. Verify network bandwidth
-5. Review batch size configuration
+**解决方案:**
+1. 检查命名空间权限: `pulsar-admin namespaces grant-permission`
+2. 验证角色配置
+3. 检查 Topic 级别权限
 
 ---
 
-### Backlog Issues
+## 2. 生产问题
 
-#### Problem: Growing Message Backlog
-**Symptoms:**
-- Backlog size increasing
-- Consumer lag alerts
-- Storage growing
+### 问题: 生产慢 (produce-slow)
+**症状:**
+- 消息发送延迟高
+- 吞吐量低于预期
+- 生产者响应慢
 
-**Possible Causes:**
-1. Consumer not running or stuck
-2. Consumer processing slower than production rate
-3. Consumer errors causing redelivery loops
-4. Too few consumers for the load
+**可能原因:**
 
-**Solutions:**
-1. Check consumer application status and logs
-2. Scale consumer instances
-3. Review consumer error handling
-4. Consider dead letter queue for poison pills
-5. Optimize consumer processing logic
+| 原因 | 诊断方法 |
+|------|----------|
+| 流量突增 | 检查 Broker 指标，查看消息入速率趋势 |
+| Broker 负载高 | 检查 CPU/内存使用率 |
+| BookKeeper 写入慢 | 检查 Bookie 磁盘 I/O |
+| 网络延迟 | ping/telnet 测试网络 |
+| 批量大小不合理 | 检查生产者 batchSizeMode 配置 |
 
-#### Problem: Backlog Not Decreasing
-**Symptoms:**
-- Messages accumulating
-- Consumers seem to process but backlog remains
+**解决方案:**
+1. 增加 Broker 数量
+2. 优化 BookKeeper 配置
+3. 调整生产者批量大小
+4. 检查网络带宽
 
-**Solutions:**
-1. Verify subscription type is appropriate (Failover, Shared, Exclusive)
-2. Check for stuck consumers
-3. Review redelivery policies
-4. Check for negative acknowledgments
+### 问题: 生产失败 (produce-failed)
+**症状:**
+- 发送异常
+- TopicNotFoundException
+- 权限错误
 
----
+**可能原因:**
 
-### Broker Issues
-
-#### Problem: Broker Crashes or Restarts Frequently
-**Symptoms:**
-- Broker process terminates unexpectedly
-- Frequent leader elections
-- Topic unloading events
-
-**Possible Causes:**
-1. Out of memory errors
-2. GC overhead
-3. File descriptor limits
-4. Disk space exhaustion
-
-**Solutions:**
-1. Increase JVM heap size
-2. Tune GC settings (recommend G1GC)
-3. Increase file descriptor limits: `ulimit -n 65536`
-4. Free up disk space or add storage
-5. Review broker logs for root cause
-
-#### Problem: Broker Not Loading Topics
-**Symptoms:**
-- Topics show as unloaded
-- Ownership not acquired
-
-**Solutions:**
-1. Check broker bundles configuration
-2. Review load manager settings
-3. Check ZooKeeper connectivity
-4. Verify namespace policies
+| 原因 | 症状 | 解决方案 |
+|------|------|----------|
+| Topic 不存在 | TopicNotFoundException | 创建 Topic 或开启自动创建 |
+| 权限不足 | PermissionDeniedException | 授予生产权限 |
+| Broker 不可用 | 连接失败 | 检查 Broker 状态 |
+| 磁盘满 | 写入被拒绝 | 清理磁盘空间 |
+| 配额限制 | QuotaExceededException | 调整配额设置 |
 
 ---
 
-### BookKeeper Issues
+## 3. 消费问题
 
-#### Problem: Bookie Not Available
-**Symptoms:**
-- Write errors
-- Ledger ensemble issues
-- Replication problems
+### 问题: 消费慢 (consume-slow)
+**症状:**
+- 消息积压增长
+- Consumer lag 增加
+- 处理延迟高
 
-**Solutions:**
-1. Check bookie process status
-2. Verify disk space availability
-3. Check network connectivity to bookie
-4. Review bookie logs for errors
+**可能原因:**
 
-#### Problem: Bookie in Read-Only Mode
-**Symptoms:**
-- Writes failing
-- Bookie shows read-only status
+| 原因 | 诊断方法 |
+|------|----------|
+| 消费者处理慢 | 检查消费者代码性能 |
+| 消费者数量不足 | 检查订阅消费者数量 |
+| 流量突增 | 检查生产速率变化 |
+| 消费者异常重试 | 检查消费者日志 |
+| 预取值不合理 | 检查 receiverQueueSize |
 
-**Causes:**
-- Disk space threshold reached
-- Disk I/O errors
+**解决方案:**
+1. 增加消费者数量
+2. 优化消费者处理逻辑
+3. 调整预取值 (receiverQueueSize)
+4. 检查消费者异常处理
 
-**Solutions:**
-1. Free up disk space
-2. Check disk health
-3. Review bookie configuration for disk thresholds
+### 问题: 消费失败 (consume-failed)
+**症状:**
+- 消费异常
+- 消息无法处理
+- 订阅状态异常
 
----
+**可能原因:**
 
-### Topic Issues
+| 原因 | 症状 | 解决方案 |
+|------|------|----------|
+| Schema 不匹配 | 反序列化失败 | 检查 Schema 配置 |
+| 消息格式错误 | 解析异常 | 检查消息格式 |
+| 消费者代码异常 | 处理抛出异常 | 修复消费者代码 |
+| DLQ 配置问题 | 死信无法转发 | 检查 DLQ 配置 |
+| 订阅冲突 | 多消费者竞争 | 调整订阅类型 |
 
-#### Problem: Topic Not Found
-**Symptoms:**
-- Topic lookup fails
-- Producer/Consumer cannot connect
+### 问题: 消费重复 (consume-duplicate)
+**症状:**
+- 同一消息多次处理
+- 业务逻辑重复执行
 
-**Solutions:**
-1. Verify topic name format: `persistent://tenant/namespace/topic`
-2. Check namespace exists
-3. Create topic if using non-partitioned topics
-4. Verify tenant and namespace policies
+**可能原因:**
 
-#### Problem: Topic Partitions Unbalanced
-**Symptoms:**
-- Uneven message distribution
-- Some partitions with higher load
+| 原因 | 说明 |
+|------|------|
+| 消费者重连 | 重连后未确认消息重新投递 |
+| Ack 超时 | 消息处理超时导致重新投递 |
+| 消费者崩溃 | 未 Ack 消息重新投递 |
+| 网络抖动 | Ack 丢失 |
+| 批量 Ack 问题 | 部分 Ack 丢失 |
 
-**Solutions:**
-1. Review key-based routing if using keys
-2. Consider increasing partition count
-3. Check for hot keys in message distribution
-4. Review partition assignment strategy
-
----
-
-### Disk Space Issues
-
-#### Problem: Disk Full on Broker
-**Symptoms:**
-- Broker unable to write messages
-- "No space left on device" errors in logs
-- Broker crashes or becomes unresponsive
-
-**Possible Causes:**
-1. Message backlog accumulating
-2. Log files not rotating properly
-3. Insufficient disk capacity for workload
-4. Retention policies not configured
-
-**Solutions:**
-1. Check disk usage: `df -h`
-2. Clean up old log files: `find /var/log/pulsar -name "*.log.*" -mtime +7 -delete`
-3. Review and adjust retention policies
-4. Increase disk capacity
-5. Check for large topic backlogs: `bin/pulsar-admin topics list`
-6. Configure log rotation in log4j2.yaml
-
-#### Problem: Bookie Disk Full
-**Symptoms:**
-- Bookie enters read-only mode
-- Write failures to ledgers
-- "Disk usage threshold exceeded" warnings
-
-**Possible Causes:**
-1. Ledger files accumulating
-2. Disk threshold reached (default 90%)
-3. Compaction not running
-4. Old ledgers not being garbage collected
-
-**Solutions:**
-1. Check disk usage: `df -h` on bookie storage directories
-2. Increase disk capacity or add new bookies
-3. Trigger ledger compaction: `bin/bookkeeper shell gc`
-4. Review diskUsageThreshold setting in bookkeeper.conf (default 0.90)
-5. Adjust diskUsageWarnThreshold (default 0.95)
-6. Clean up orphaned ledger directories
-7. Consider increasing bookie storage capacity
-
-#### Problem: ZooKeeper Disk Full
-**Symptoms:**
-- ZooKeeper unable to write snapshots
-- Transaction log errors
-- Cluster coordination failures
-
-**Solutions:**
-1. Check ZooKeeper data directory size
-2. Clean up old snapshots and logs
-3. Configure autopurge in zoo.cfg:
-   ```
-   autopurge.snapRetainCount=3
-   autopurge.purgeInterval=1
-   ```
-4. Increase disk capacity for ZooKeeper
-
-#### Problem: Disk I/O Performance Issues
-**Symptoms:**
-- High write latency
-- Slow message throughput
-- BookKeeper write delays
-
-**Possible Causes:**
-1. Disk I/O bottleneck
-2. Competing disk usage (logs + data on same disk)
-3. Hardware degradation
-4. Filesystem issues
-
-**Solutions:**
-1. Monitor disk I/O: `iostat -x 1`
-2. Separate log and data directories
-3. Use dedicated disks for BookKeeper journals
-4. Check disk health: `smartctl -a /dev/sda`
-5. Consider SSD for journal directories
-6. Review mount options (noatime, nodiratime)
+**解决方案:**
+1. 实现幂等处理
+2. 调整 ackTimeoutMillis 配置
+3. 使用 Key_Shared 订阅保证顺序
+4. 监控消费者重连频率
 
 ---
 
-### Disk Monitoring Best Practices
+## 4. 其他问题
 
-#### Key Metrics to Monitor
-1. **Disk Usage Percentage**
-   - Alert at 80% usage
-   - Critical at 90% usage
-   - BookKeeper read-only at 95%
+### 集群健康检查 (cluster-health)
+- Broker 状态检查
+- Bookie 可用性检查
+- ZooKeeper 连接检查
 
-2. **Disk I/O Latency**
-   - Monitor with `iostat` or Prometheus metrics
-   - Alert if write latency > 10ms sustained
+### 磁盘问题 (disk-issue)
+- 磁盘空间不足
+- Bookie 只读模式
+- 磁盘 I/O 性能
 
-3. **Inode Usage**
-   - Check with `df -i`
-   - Can run out of inodes before space
+### 容量规划 (capacity-planning)
+- 资源使用评估
+- 扩容建议
+- 性能基准测试
 
-4. **File Descriptor Usage**
-   - Monitor with `lsof | wc -l`
-   - Should be below ulimit
+---
 
-#### Recommended Thresholds
+## 诊断命令速查
 
-```properties
-# broker.conf
-bookkeeperLedgerPath=/data/bookkeeper/ledgers
-managedLedgerDefaultRetentionTime=7d
-managedLedgerDefaultRetentionSizeInMB=0  # unlimited, use time-based
+```bash
+# 集群状态
+pulsar-admin brokers list
+pulsar-admin brokers healthcheck
 
-# bookkeeper.conf
-diskUsageThreshold=0.90
-diskUsageWarnThreshold=0.95
-journalSyncData=true
-journalMaxGroupWaitMSec=1
+# Topic 诊断
+pulsar-admin topics list <namespace>
+pulsar-admin topics stats <topic>
+pulsar-admin topics peek-messages <topic> -s <subscription>
 
-# zoo.cfg
-autopurge.snapRetainCount=3
-autopurge.purgeInterval=1
+# 消费者诊断
+pulsar-admin topics subscriptions <topic>
+pulsar-admin topics consumers <topic>
+
+# 权限检查
+pulsar-admin namespaces permissions <namespace>
+pulsar-admin topics permissions <topic>
+
+# 指标查看
+curl http://<broker>:8080/metrics
 ```
-
----
-
-### Memory and Resource Issues
-
-#### Problem: OutOfMemoryError
-**Symptoms:**
-- Broker crashes
-- GC overhead limit exceeded errors
-
-**Solutions:**
-1. Increase -Xmx setting
-2. Tune GC algorithm (recommend G1GC)
-3. Review direct memory limits (-XX:MaxDirectMemorySize)
-4. Check for memory leaks
-5. Monitor heap usage patterns
-
-#### Problem: Too Many Open Files
-**Symptoms:**
-- "Too many open files" errors
-- Connection failures
-
-**Solutions:**
-1. Increase system limits: `ulimit -n 65536`
-2. Add to /etc/security/limits.conf
-3. Review file handle usage pattern
-4. Check for connection leaks

@@ -25,16 +25,26 @@ public class McpDataService {
     private static final Logger log = LoggerFactory.getLogger(McpDataService.class);
 
     /**
-     * 意图到 MCP 工具的映射
+     * 意图到 MCP 工具的映射 - 按问题现象组织
      */
     private static final Map<String, String[]> INTENT_TOOL_MAPPING = Map.of(
-            "backlog-diagnosis", new String[]{"get_topic_backlog", "get_consumer_stats", "list_topics"},
-            "cluster-health-check", new String[]{"inspect_cluster", "get_broker_metrics", "list_brokers"},
-            "performance-analysis", new String[]{"get_broker_metrics", "get_topic_metrics", "get_cluster_metrics"},
-            "connectivity-troubleshoot", new String[]{"check_connectivity", "get_connection_stats", "list_brokers"},
+            // 认证/鉴权问题
+            "auth-issue", new String[]{"check_auth_config", "get_permissions", "inspect_cluster"},
+
+            // 生产问题
+            "produce-slow", new String[]{"get_broker_metrics", "get_topic_metrics", "get_producer_stats"},
+            "produce-failed", new String[]{"get_topic_info", "check_permissions", "inspect_cluster"},
+
+            // 消费问题
+            "consume-slow", new String[]{"get_consumer_stats", "get_topic_backlog", "get_subscription_stats"},
+            "consume-failed", new String[]{"get_consumer_stats", "get_dlq_stats", "check_subscription"},
+            "consume-duplicate", new String[]{"get_consumer_stats", "get_subscription_stats"},
+
+            // 其他问题
+            "cluster-health", new String[]{"inspect_cluster", "get_broker_metrics", "list_brokers"},
+            "disk-issue", new String[]{"check_disk_space", "inspect_cluster", "get_resource_usage"},
             "capacity-planning", new String[]{"get_cluster_metrics", "get_resource_usage", "list_brokers"},
-            "topic-consultation", new String[]{"get_topic_info", "list_topics", "get_topic_config"},
-            "disk-diagnosis", new String[]{"check_disk_space", "inspect_cluster", "get_resource_usage"}
+            "topic-consultation", new String[]{"get_topic_info", "list_topics", "get_topic_config"}
     );
 
     private final McpToolRegistry mcpToolRegistry;

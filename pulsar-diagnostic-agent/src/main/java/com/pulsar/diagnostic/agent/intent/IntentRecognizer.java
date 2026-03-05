@@ -34,26 +34,46 @@ public class IntentRecognizer {
     private static final String INTENT_PROMPT_FILE = "prompts/intent-recognition.md";
     private static final Pattern JSON_PATTERN = Pattern.compile("\\{[^{}]*\"intent\"[^{}]*\\}", Pattern.DOTALL);
 
-    // 技能关键词映射
+    // 技能关键词映射 - 按问题现象组织
     private static final Map<String, String[]> SKILL_KEYWORDS = Map.of(
-            "backlog-diagnosis", new String[]{"积压", "backlog", "消费延迟", "消息堆积", "lag", "积压诊断", "消费慢"},
-            "cluster-health-check", new String[]{"健康", "状态", "检查", "health", "监控", "集群状态", "健康检查"},
-            "performance-analysis", new String[]{"性能", "吞吐量", "延迟", "慢", "优化", "performance", "性能分析", "瓶颈"},
-            "connectivity-troubleshoot", new String[]{"连接", "网络", "认证", "超时", "connect", "连接失败", "网络问题"},
+            // 认证/鉴权问题
+            "auth-issue", new String[]{"认证", "鉴权", "权限", "登录", "auth", "permission", "token", "401", "403", "unauthorized", "认证失败", "权限不足"},
+
+            // 生产问题
+            "produce-slow", new String[]{"生产慢", "发送慢", "写入慢", "produce slow", "发送延迟", "写入延迟", "生产延迟", "发送性能"},
+            "produce-failed", new String[]{"生产失败", "发送失败", "写入失败", "produce failed", "发送异常", "生产异常", "写入异常"},
+
+            // 消费问题
+            "consume-slow", new String[]{"消费慢", "消费延迟", "积压", "backlog", "lag", "消费处理慢", "消息堆积", "消费性能"},
+            "consume-failed", new String[]{"消费失败", "消费异常", "无法消费", "consume failed", "消费错误", "消费超时"},
+            "consume-duplicate", new String[]{"消费重复", "重复消费", "重复消息", "duplicate", "重复处理", "消息重复"},
+
+            // 其他问题
+            "cluster-health", new String[]{"健康", "状态", "检查", "health", "监控", "集群状态", "健康检查"},
+            "disk-issue", new String[]{"磁盘", "disk", "空间", "满", "存储", "storage", "容量不足", "no space", "磁盘满"},
             "capacity-planning", new String[]{"容量", "扩容", "规划", "资源", "capacity", "容量规划", "扩容建议"},
-            "topic-consultation", new String[]{"主题", "分区", "保留", "配置", "topic", "主题设计", "分区策略"},
-            "disk-diagnosis", new String[]{"磁盘", "disk", "空间", "满", "存储", "storage", "容量不足", "no space", "磁盘满", "读写", "io错误"}
+            "topic-consultation", new String[]{"主题", "分区", "保留", "配置", "topic", "主题设计", "分区策略"}
     );
 
-    // 意图到 MCP 工具的映射
+    // 意图到 MCP 工具的映射 - 按问题现象组织
     private static final Map<String, String[]> INTENT_MCP_TOOLS = Map.of(
-            "backlog-diagnosis", new String[]{"get_topic_backlog", "get_consumer_stats"},
-            "cluster-health-check", new String[]{"inspect_cluster", "get_broker_metrics"},
-            "performance-analysis", new String[]{"get_broker_metrics", "get_topic_metrics"},
-            "connectivity-troubleshoot", new String[]{"check_connectivity", "get_connection_stats"},
+            // 认证/鉴权问题
+            "auth-issue", new String[]{"check_auth_config", "get_permissions", "inspect_cluster"},
+
+            // 生产问题
+            "produce-slow", new String[]{"get_broker_metrics", "get_topic_metrics", "get_producer_stats"},
+            "produce-failed", new String[]{"get_topic_info", "check_permissions", "inspect_cluster"},
+
+            // 消费问题
+            "consume-slow", new String[]{"get_consumer_stats", "get_topic_backlog", "get_subscription_stats"},
+            "consume-failed", new String[]{"get_consumer_stats", "get_dlq_stats", "check_subscription"},
+            "consume-duplicate", new String[]{"get_consumer_stats", "get_subscription_stats"},
+
+            // 其他问题
+            "cluster-health", new String[]{"inspect_cluster", "get_broker_metrics"},
+            "disk-issue", new String[]{"check_disk_space", "inspect_cluster"},
             "capacity-planning", new String[]{"get_cluster_metrics", "get_resource_usage"},
-            "topic-consultation", new String[]{"get_topic_info", "list_topics"},
-            "disk-diagnosis", new String[]{"check_disk_space", "inspect_cluster"}
+            "topic-consultation", new String[]{"get_topic_info", "list_topics"}
     );
 
     // 需要 MCP 数据的关键词
@@ -63,13 +83,23 @@ public class IntentRecognizer {
     };
 
     private static final Set<String> VALID_INTENTS = Set.of(
-            "backlog-diagnosis",
-            "cluster-health-check",
-            "performance-analysis",
-            "connectivity-troubleshoot",
+            // 认证/鉴权问题
+            "auth-issue",
+
+            // 生产问题
+            "produce-slow",
+            "produce-failed",
+
+            // 消费问题
+            "consume-slow",
+            "consume-failed",
+            "consume-duplicate",
+
+            // 其他问题
+            "cluster-health",
+            "disk-issue",
             "capacity-planning",
             "topic-consultation",
-            "disk-diagnosis",
             "general"
     );
 
@@ -217,12 +247,15 @@ public class IntentRecognizer {
             }
         }
 
-        // 根据意图类型判断
-        return "backlog-diagnosis".equals(intent) ||
-               "cluster-health-check".equals(intent) ||
-               "performance-analysis".equals(intent) ||
-               "connectivity-troubleshoot".equals(intent) ||
-               "disk-diagnosis".equals(intent);
+        // 根据意图类型判断 - 问题诊断类都需要实时数据
+        return "auth-issue".equals(intent) ||
+               "produce-slow".equals(intent) ||
+               "produce-failed".equals(intent) ||
+               "consume-slow".equals(intent) ||
+               "consume-failed".equals(intent) ||
+               "consume-duplicate".equals(intent) ||
+               "cluster-health".equals(intent) ||
+               "disk-issue".equals(intent);
     }
 
     /**
@@ -233,24 +266,14 @@ public class IntentRecognizer {
             return RouteType.GENERAL_CHAT;
         }
 
-        if (needsMcp) {
-            // 诊断类问题需要混合模式
-            if ("backlog-diagnosis".equals(intent) ||
-                "performance-analysis".equals(intent) ||
-                "connectivity-troubleshoot".equals(intent) ||
-                "disk-diagnosis".equals(intent)) {
-                return RouteType.HYBRID;
-            }
-            // 状态查询类只需要 MCP
-            if ("cluster-health-check".equals(intent)) {
-                return RouteType.HYBRID; // 也需要知识来解释状态
-            }
-            return RouteType.HYBRID;
-        }
-
         // 咨询类问题只需要知识
         if ("topic-consultation".equals(intent) || "capacity-planning".equals(intent)) {
             return RouteType.KNOWLEDGE_ONLY;
+        }
+
+        // 问题诊断类需要混合模式（知识 + 实时数据）
+        if (needsMcp) {
+            return RouteType.HYBRID;
         }
 
         return RouteType.KNOWLEDGE_ONLY;

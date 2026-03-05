@@ -357,13 +357,23 @@ public class ResponseOrchestrator {
      */
     private String getIntentDisplayName(String intent) {
         return switch (intent) {
-            case "backlog-diagnosis" -> "消息积压诊断";
-            case "cluster-health-check" -> "集群健康检查";
-            case "performance-analysis" -> "性能分析";
-            case "connectivity-troubleshoot" -> "连接故障排查";
+            // 认证/鉴权问题
+            case "auth-issue" -> "认证/鉴权问题诊断";
+
+            // 生产问题
+            case "produce-slow" -> "生产慢诊断";
+            case "produce-failed" -> "生产失败诊断";
+
+            // 消费问题
+            case "consume-slow" -> "消费慢诊断";
+            case "consume-failed" -> "消费失败诊断";
+            case "consume-duplicate" -> "消费重复诊断";
+
+            // 其他问题
+            case "cluster-health" -> "集群健康检查";
+            case "disk-issue" -> "磁盘问题诊断";
             case "capacity-planning" -> "容量规划";
             case "topic-consultation" -> "主题咨询";
-            case "disk-diagnosis" -> "磁盘诊断";
             default -> "通用";
         };
     }
