@@ -1,8 +1,10 @@
 package com.pulsar.diagnostic.agent.service;
 
+import com.pulsar.diagnostic.agent.dto.OrchestratorResponse;
 import com.pulsar.diagnostic.agent.dto.QAResponse;
 import com.pulsar.diagnostic.agent.intent.IntentRecognizer;
 import com.pulsar.diagnostic.agent.intent.IntentResult;
+import com.pulsar.diagnostic.agent.intent.RouteType;
 import com.pulsar.diagnostic.agent.prompt.PromptTemplates;
 import com.pulsar.diagnostic.knowledge.KnowledgeBaseService;
 import org.slf4j.Logger;
@@ -19,8 +21,8 @@ import java.util.List;
 /**
  * 聊天服务
  *
- * 处理用户聊天消息，包含意图识别、技能路由和知识问答
- * SkillsTool已通过AIConfig注册到ChatClient，LLM可自动调用工具
+ * 处理用户聊天消息，使用 ResponseOrchestrator 进行智能路由和综合回答
+ * 支持知识库问答和 MCP 实时数据集成
  */
 @Service
 public class ChatService {
@@ -32,22 +34,25 @@ public class ChatService {
     private final PromptTemplates promptTemplates;
     private final IntentRecognizer intentRecognizer;
     private final KnowledgeQAService knowledgeQAService;
+    private final ResponseOrchestrator responseOrchestrator;
 
     public ChatService(ChatClient chatClient,
                        KnowledgeBaseService knowledgeBaseService,
                        PromptTemplates promptTemplates,
                        IntentRecognizer intentRecognizer,
-                       KnowledgeQAService knowledgeQAService) {
+                       KnowledgeQAService knowledgeQAService,
+                       ResponseOrchestrator responseOrchestrator) {
         this.chatClient = chatClient;
         this.knowledgeBaseService = knowledgeBaseService;
         this.promptTemplates = promptTemplates;
         this.intentRecognizer = intentRecognizer;
         this.knowledgeQAService = knowledgeQAService;
+        this.responseOrchestrator = responseOrchestrator;
     }
 
     /**
      * 发送聊天消息并获取响应
-     * 流程：意图识别 -> 技能匹配 -> 执行处理 -> 返回结果
+     * 使用 ResponseOrchestrator 进行智能路由
      */
     public String chat(String userMessage) {
         return chat(userMessage, null);
@@ -60,19 +65,9 @@ public class ChatService {
         log.info("处理聊天消息: {}", truncate(userMessage, 50));
 
         try {
-            // 1. 意图识别
-            IntentResult intent = intentRecognizer.recognize(userMessage);
-            log.info("识别到意图: {} (置信度: {}, 理由: {})",
-                    intent.intent(), intent.confidence(), intent.reasoning());
-
-            // 2. 根据意图路由处理
-            if (intent.isGeneral()) {
-                // 通用对话 - 使用知识问答
-                return handleKnowledgeQA(userMessage, conversationHistory);
-            } else {
-                // 调用特定技能处理
-                return handleSkillExecution(userMessage, intent);
-            }
+            // 使用编排器处理
+            OrchestratorResponse response = responseOrchestrator.process(userMessage, conversationHistory);
+            return formatOrchestratorResponse(response);
 
         } catch (Exception e) {
             log.error("处理聊天消息失败", e);
@@ -89,7 +84,31 @@ public class ChatService {
     }
 
     /**
-     * 处理知识问答
+     * 格式化编排器响应
+     */
+    private String formatOrchestratorResponse(OrchestratorResponse response) {
+        StringBuilder sb = new StringBuilder();
+
+        // 添加响应内容
+        sb.append(response.content());
+
+        // 添加路由信息（调试模式）
+        if (response.routeType() != RouteType.GENERAL_CHAT) {
+            sb.append("\n\n---\n\n");
+            sb.append("📌 **数据来源**: ");
+            switch (response.routeType()) {
+                case KNOWLEDGE_ONLY -> sb.append("知识库");
+                case MCP_ONLY -> sb.append("实时集群数据");
+                case HYBRID -> sb.append("知识库 + 实时数据");
+                case GENERAL_CHAT -> sb.append("通用对话");
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * 处理知识问答（保留向后兼容）
      */
     private String handleKnowledgeQA(String userMessage, List<String> conversationHistory) {
         log.info("处理知识问答");
@@ -166,68 +185,6 @@ public class ChatService {
     }
 
     /**
-     * 处理技能执行 - ChatClient会自动调用注册的工具（SkillsTool和ToolCallbacks）
-     */
-    private String handleSkillExecution(String userMessage, IntentResult intent) {
-        log.info("执行技能: {}", intent.intent());
-
-        try {
-            String knowledgeContext = getKnowledgeContext(userMessage);
-
-            // 构建包含意图信息的系统提示
-            String systemPrompt = promptTemplates.SYSTEM_PROMPT + "\n\n" +
-                    "当前任务类型: " + getIntentDisplayName(intent.intent()) + "\n" +
-                    "分析理由: " + intent.reasoning();
-
-            if (knowledgeContext != null && !knowledgeContext.isEmpty()) {
-                systemPrompt += "\n\n相关知识点：\n" + knowledgeContext;
-            }
-
-            List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>();
-            messages.add(new SystemMessage(systemPrompt));
-            messages.add(new UserMessage(userMessage));
-
-            // ChatClient会自动调用注册的工具（SkillsTool和ToolCallbacks）
-            String response = chatClient.prompt()
-                    .messages(messages)
-                    .call()
-                    .content();
-
-            // 添加意图识别信息
-            StringBuilder sb = new StringBuilder();
-            sb.append("## 诊断结果\n\n");
-            sb.append("**识别意图**: ").append(getIntentDisplayName(intent.intent())).append("\n");
-            sb.append("**置信度**: ").append(String.format("%.0f%%", intent.confidence() * 100)).append("\n");
-            sb.append("**分析理由**: ").append(intent.reasoning()).append("\n\n");
-            sb.append("---\n\n");
-            sb.append(response);
-
-            return sb.toString();
-
-        } catch (Exception e) {
-            log.error("技能执行失败: {}", intent.intent(), e);
-            // 降级到知识问答
-            return "技能执行遇到问题，让我尝试用其他方式帮您...\n\n" +
-                   handleKnowledgeQA(userMessage, null);
-        }
-    }
-
-    /**
-     * 获取意图显示名称
-     */
-    private String getIntentDisplayName(String intent) {
-        return switch (intent) {
-            case "backlog-diagnosis" -> "消息积压诊断";
-            case "cluster-health-check" -> "集群健康检查";
-            case "performance-analysis" -> "性能分析";
-            case "connectivity-troubleshoot" -> "连接故障排查";
-            case "capacity-planning" -> "容量规划";
-            case "topic-consultation" -> "主题咨询";
-            default -> intent;
-        };
-    }
-
-    /**
      * 流式聊天响应
      */
     public Flux<String> chatStream(String userMessage) {
@@ -242,15 +199,15 @@ public class ChatService {
 
         try {
             // 意图识别
-            IntentResult intent = intentRecognizer.recognize(userMessage);
-            log.info("流式模式 - 识别到意图: {}", intent.intent());
+            IntentResult intent = intentRecognizer.recognize(userMessage, conversationHistory);
+            log.info("流式模式 - 识别到意图: {}, routeType: {}", intent.intent(), intent.routeType());
 
             if (intent.isGeneral()) {
                 return streamGeneralChat(userMessage, conversationHistory);
             } else {
-                // 技能执行返回完整结果，转换为流
-                String result = handleSkillExecution(userMessage, intent);
-                return Flux.just(result);
+                // 非通用意图返回完整结果（通过编排器处理）
+                OrchestratorResponse response = responseOrchestrator.process(userMessage, conversationHistory);
+                return Flux.just(formatOrchestratorResponse(response));
             }
 
         } catch (Exception e) {

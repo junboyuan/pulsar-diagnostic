@@ -4,6 +4,12 @@ server:
 spring:
   application:
     name: pulsar-diagnostic-agent
+  main:
+    allow-bean-definition-overriding: true
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.web.reactive.WebFluxAutoConfiguration
+      - org.springframework.boot.autoconfigure.web.reactive.ReactiveWebServerFactoryAutoConfiguration
 
   ai:
     openai:
@@ -57,6 +63,15 @@ pulsar-diagnostic:
     query-enhancement:
       enabled: ${RAG_QUERY_ENHANCE_ENABLED:true}
       expansion-count: ${RAG_QUERY_EXPANSION_COUNT:3}
+  orchestration:
+    # 并行获取超时
+    parallel-timeout-ms: ${ORCHESTRATION_PARALLEL_TIMEOUT_MS:10000}
+    # MCP 数据获取超时
+    mcp-timeout-ms: ${ORCHESTRATION_MCP_TIMEOUT_MS:5000}
+    # 知识检索超时
+    knowledge-timeout-ms: ${ORCHESTRATION_KNOWLEDGE_TIMEOUT_MS:5000}
+  mcp:
+    timeout-ms: ${MCP_DATA_TIMEOUT_MS:5000}
 
 management:
   endpoints:

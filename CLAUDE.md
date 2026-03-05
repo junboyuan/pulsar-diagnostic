@@ -156,3 +156,5 @@ Uses Apache Pulsar 2.10.4 client. The `PulsarAdminClient` wraps admin operations
 - **不偷懒**：找到根本原因。不做临时修复。高级开发标准。
 - **最小影响**：变更应该只触及必要部分。避免引入 bug
 
+## 记录历史
+-- **history** 整个过程生成的plan和提示词等等都记录到history目录下,整个过程要记录

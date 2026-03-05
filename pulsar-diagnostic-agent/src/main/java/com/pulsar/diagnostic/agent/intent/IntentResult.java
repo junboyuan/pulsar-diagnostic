@@ -1,5 +1,7 @@
 package com.pulsar.diagnostic.agent.intent;
 
+import java.util.List;
+
 /**
  * 意图识别结果
  */
@@ -32,7 +34,22 @@ public record IntentResult(
         /**
          * 用户输入的英文翻译
          */
-        String translation
+        String translation,
+
+        /**
+         * 是否需要 MCP 数据
+         */
+        boolean needsMcpData,
+
+        /**
+         * 建议调用的 MCP 工具列表
+         */
+        List<String> suggestedMcpTools,
+
+        /**
+         * 路由类型
+         */
+        RouteType routeType
 ) {
     /**
      * 是否为通用对话（无特定技能匹配）
@@ -65,7 +82,10 @@ public record IntentResult(
                 "无特定诊断意图",
                 "友好回复并询问需要什么帮助",
                 "",
-                ""
+                "",
+                false,
+                List.of(),
+                RouteType.GENERAL_CHAT
         );
     }
 
@@ -73,15 +93,42 @@ public record IntentResult(
      * 创建指定意图（兼容旧版本）
      */
     public static IntentResult of(String intent, double confidence, String reasoning, String suggestedAction) {
-        return new IntentResult(intent, confidence, reasoning, suggestedAction, "", "");
+        return new IntentResult(intent, confidence, reasoning, suggestedAction, "", "", false, List.of(), RouteType.GENERAL_CHAT);
     }
 
     /**
-     * 创建指定意图（完整版本）
+     * 创建指定意图（带路由信息）
+     */
+    public static IntentResult of(String intent, double confidence, String reasoning,
+                                  String suggestedAction, String resolvedQuestion, String translation,
+                                  boolean needsMcpData, List<String> suggestedMcpTools, RouteType routeType) {
+        return new IntentResult(intent, confidence, reasoning, suggestedAction, resolvedQuestion, translation,
+                needsMcpData, suggestedMcpTools != null ? suggestedMcpTools : List.of(), routeType);
+    }
+
+    /**
+     * 创建指定意图（简化版，自动推断路由类型）
      */
     public static IntentResult of(String intent, double confidence, String reasoning,
                                   String suggestedAction, String resolvedQuestion, String translation) {
-        return new IntentResult(intent, confidence, reasoning, suggestedAction, resolvedQuestion, translation);
+        // 根据意图类型推断路由
+        RouteType routeType = inferRouteType(intent, false);
+        return new IntentResult(intent, confidence, reasoning, suggestedAction, resolvedQuestion, translation,
+                false, List.of(), routeType);
+    }
+
+    /**
+     * 推断路由类型
+     */
+    private static RouteType inferRouteType(String intent, boolean needsMcpData) {
+        if ("general".equals(intent)) {
+            return RouteType.GENERAL_CHAT;
+        }
+        // 大多数诊断意图默认使用混合模式
+        if (needsMcpData) {
+            return RouteType.HYBRID;
+        }
+        return RouteType.KNOWLEDGE_ONLY;
     }
 
     /**

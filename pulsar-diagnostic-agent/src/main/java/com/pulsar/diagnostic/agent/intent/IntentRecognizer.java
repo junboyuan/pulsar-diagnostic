@@ -12,6 +12,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,7 +23,7 @@ import java.util.regex.Pattern;
 /**
  * 意图识别服务
  *
- * 分析用户输入，识别意图并匹配到对应的技能
+ * 分析用户输入，识别意图并判断数据来源路由
  * 支持对话历史和指代消解
  */
 @Service
@@ -41,6 +43,22 @@ public class IntentRecognizer {
             "capacity-planning", new String[]{"容量", "扩容", "规划", "资源", "capacity", "容量规划", "扩容建议"},
             "topic-consultation", new String[]{"主题", "分区", "保留", "配置", "topic", "主题设计", "分区策略"}
     );
+
+    // 意图到 MCP 工具的映射
+    private static final Map<String, String[]> INTENT_MCP_TOOLS = Map.of(
+            "backlog-diagnosis", new String[]{"get_topic_backlog", "get_consumer_stats"},
+            "cluster-health-check", new String[]{"inspect_cluster", "get_broker_metrics"},
+            "performance-analysis", new String[]{"get_broker_metrics", "get_topic_metrics"},
+            "connectivity-troubleshoot", new String[]{"check_connectivity", "get_connection_stats"},
+            "capacity-planning", new String[]{"get_cluster_metrics", "get_resource_usage"},
+            "topic-consultation", new String[]{"get_topic_info", "list_topics"}
+    );
+
+    // 需要 MCP 数据的关键词
+    private static final String[] MCP_INDICATOR_KEYWORDS = {
+            "当前", "现在", "多少", "显示", "列出", "查看", "查询", "状态", "列表",
+            "为什么", "怎么", "如何", "诊断", "分析", "排查", "检查"
+    };
 
     private static final Set<String> VALID_INTENTS = Set.of(
             "backlog-diagnosis",
@@ -156,19 +174,96 @@ public class IntentRecognizer {
             }
         }
 
-        if (bestIntent != null && bestScore >= 2) {
+        if (bestIntent != null && bestScore >= 1) {
             double confidence = Math.min(0.95, 0.5 + (bestScore * 0.15));
+            boolean needsMcp = detectMcpNeed(input, bestIntent);
+            RouteType routeType = determineRouteType(bestIntent, needsMcp);
+            List<String> suggestedTools = getSuggestedTools(bestIntent, needsMcp);
+
             return IntentResult.of(
                     bestIntent,
                     confidence,
                     "关键词匹配: " + bestScore + " 个关键词",
                     "调用" + bestIntent + "技能处理",
-                    input, // 原始问题作为 resolved_question
-                    ""     // 快速匹配不需要翻译
+                    input,
+                    "",
+                    needsMcp,
+                    suggestedTools,
+                    routeType
             );
         }
 
         return null;
+    }
+
+    /**
+     * 检测是否需要 MCP 数据
+     */
+    private boolean detectMcpNeed(String input, String intent) {
+        String lowerInput = input.toLowerCase();
+
+        // 检查 MCP 指示关键词
+        for (String keyword : MCP_INDICATOR_KEYWORDS) {
+            if (lowerInput.contains(keyword)) {
+                // 排除纯概念性问题
+                if (lowerInput.contains("什么是") || lowerInput.contains("概念") ||
+                    lowerInput.contains("原理") || lowerInput.contains("介绍")) {
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        // 根据意图类型判断
+        return "backlog-diagnosis".equals(intent) ||
+               "cluster-health-check".equals(intent) ||
+               "performance-analysis".equals(intent) ||
+               "connectivity-troubleshoot".equals(intent);
+    }
+
+    /**
+     * 确定路由类型
+     */
+    private RouteType determineRouteType(String intent, boolean needsMcp) {
+        if ("general".equals(intent)) {
+            return RouteType.GENERAL_CHAT;
+        }
+
+        if (needsMcp) {
+            // 诊断类问题需要混合模式
+            if ("backlog-diagnosis".equals(intent) ||
+                "performance-analysis".equals(intent) ||
+                "connectivity-troubleshoot".equals(intent)) {
+                return RouteType.HYBRID;
+            }
+            // 状态查询类只需要 MCP
+            if ("cluster-health-check".equals(intent)) {
+                return RouteType.HYBRID; // 也需要知识来解释状态
+            }
+            return RouteType.HYBRID;
+        }
+
+        // 咨询类问题只需要知识
+        if ("topic-consultation".equals(intent) || "capacity-planning".equals(intent)) {
+            return RouteType.KNOWLEDGE_ONLY;
+        }
+
+        return RouteType.KNOWLEDGE_ONLY;
+    }
+
+    /**
+     * 获取建议的 MCP 工具
+     */
+    private List<String> getSuggestedTools(String intent, boolean needsMcp) {
+        if (!needsMcp) {
+            return List.of();
+        }
+
+        String[] tools = INTENT_MCP_TOOLS.get(intent);
+        if (tools != null) {
+            return Arrays.asList(tools);
+        }
+        return List.of();
     }
 
     /**
@@ -189,9 +284,8 @@ public class IntentRecognizer {
                     .content();
 
             IntentResult result = parseResponse(response, userInput);
-            log.info("LLM意图识别结果: {} (置信度: {}, 指代消解: {})",
-                    result.intent(), result.confidence(),
-                    !userInput.equals(result.resolvedQuestion()));
+            log.info("LLM意图识别结果: intent={}, routeType={}, needsMcp={}, confidence={}",
+                    result.intent(), result.routeType(), result.needsMcpData(), result.confidence());
 
             return result;
 
@@ -239,7 +333,7 @@ public class IntentRecognizer {
      */
     private String extractTemplate() {
         if (intentPrompt == null) {
-            return "请分析用户输入并返回JSON格式的意图识别结果。\n\n对话历史：{conversation_history}\n用户输入：{user_input}";
+            return buildDefaultTemplate();
         }
 
         // 查找模板部分
@@ -255,6 +349,42 @@ public class IntentRecognizer {
         }
 
         return intentPrompt;
+    }
+
+    /**
+     * 构建默认模板
+     */
+    private String buildDefaultTemplate() {
+        return """
+                请分析用户输入并返回JSON格式的意图识别结果。
+
+                ## 对话历史
+                {conversation_history}
+
+                ## 用户输入
+                {user_input}
+
+                ## 输出格式
+                请返回以下JSON格式：
+                ```json
+                {
+                  "intent": "意图类型",
+                  "confidence": 0.9,
+                  "reasoning": "分类理由",
+                  "suggested_action": "建议操作",
+                  "resolved_question": "指代消解后的问题",
+                  "translation": "英文翻译",
+                  "needs_mcp_data": true,
+                  "suggested_mcp_tools": ["tool1", "tool2"],
+                  "route_type": "hybrid"
+                }
+                ```
+
+                意图类型: backlog-diagnosis, cluster-health-check, performance-analysis, connectivity-troubleshoot, capacity-planning, topic-consultation, general
+                路由类型: knowledge_only, mcp_only, hybrid, general
+
+                如果问题涉及实时状态、数量、诊断分析，需要设置 needs_mcp_data 为 true。
+                """;
     }
 
     /**
@@ -283,13 +413,29 @@ public class IntentRecognizer {
             String resolvedQuestion = (String) map.getOrDefault("resolved_question", originalInput);
             String translation = (String) map.getOrDefault("translation", "");
 
+            // 解析路由相关字段
+            boolean needsMcpData = parseBoolean(map.get("needs_mcp_data"), false);
+            List<String> suggestedTools = parseStringList(map.get("suggested_mcp_tools"));
+            RouteType routeType = parseRouteType(map.get("route_type"));
+
             // 验证意图是否有效
             if (!VALID_INTENTS.contains(intent)) {
                 log.warn("无效的意图: {}, 使用general", intent);
                 intent = "general";
             }
 
-            return IntentResult.of(intent, confidence, reasoning, suggestedAction, resolvedQuestion, translation);
+            // 如果 LLM 没有返回工具建议，根据意图补充
+            if (needsMcpData && suggestedTools.isEmpty()) {
+                suggestedTools = getSuggestedTools(intent, true);
+            }
+
+            // 如果 LLM 没有返回路由类型，根据意图补充
+            if (routeType == RouteType.GENERAL_CHAT && !"general".equals(intent)) {
+                routeType = determineRouteType(intent, needsMcpData);
+            }
+
+            return IntentResult.of(intent, confidence, reasoning, suggestedAction,
+                    resolvedQuestion, translation, needsMcpData, suggestedTools, routeType);
 
         } catch (Exception e) {
             log.error("解析意图识别响应失败: {}", e.getMessage());
@@ -377,6 +523,32 @@ public class IntentRecognizer {
         } catch (NumberFormatException e) {
             return defaultValue;
         }
+    }
+
+    private boolean parseBoolean(Object value, boolean defaultValue) {
+        if (value == null) return defaultValue;
+        if (value instanceof Boolean) return (Boolean) value;
+        return Boolean.parseBoolean(value.toString());
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> parseStringList(Object value) {
+        if (value == null) return List.of();
+        if (value instanceof List) {
+            List<String> result = new ArrayList<>();
+            for (Object item : (List<?>) value) {
+                if (item != null) {
+                    result.add(item.toString());
+                }
+            }
+            return result;
+        }
+        return List.of();
+    }
+
+    private RouteType parseRouteType(Object value) {
+        if (value == null) return RouteType.GENERAL_CHAT;
+        return RouteType.fromCode(value.toString());
     }
 
     /**
