@@ -194,6 +194,128 @@
 
 ---
 
+### Disk Space Issues
+
+#### Problem: Disk Full on Broker
+**Symptoms:**
+- Broker unable to write messages
+- "No space left on device" errors in logs
+- Broker crashes or becomes unresponsive
+
+**Possible Causes:**
+1. Message backlog accumulating
+2. Log files not rotating properly
+3. Insufficient disk capacity for workload
+4. Retention policies not configured
+
+**Solutions:**
+1. Check disk usage: `df -h`
+2. Clean up old log files: `find /var/log/pulsar -name "*.log.*" -mtime +7 -delete`
+3. Review and adjust retention policies
+4. Increase disk capacity
+5. Check for large topic backlogs: `bin/pulsar-admin topics list`
+6. Configure log rotation in log4j2.yaml
+
+#### Problem: Bookie Disk Full
+**Symptoms:**
+- Bookie enters read-only mode
+- Write failures to ledgers
+- "Disk usage threshold exceeded" warnings
+
+**Possible Causes:**
+1. Ledger files accumulating
+2. Disk threshold reached (default 90%)
+3. Compaction not running
+4. Old ledgers not being garbage collected
+
+**Solutions:**
+1. Check disk usage: `df -h` on bookie storage directories
+2. Increase disk capacity or add new bookies
+3. Trigger ledger compaction: `bin/bookkeeper shell gc`
+4. Review diskUsageThreshold setting in bookkeeper.conf (default 0.90)
+5. Adjust diskUsageWarnThreshold (default 0.95)
+6. Clean up orphaned ledger directories
+7. Consider increasing bookie storage capacity
+
+#### Problem: ZooKeeper Disk Full
+**Symptoms:**
+- ZooKeeper unable to write snapshots
+- Transaction log errors
+- Cluster coordination failures
+
+**Solutions:**
+1. Check ZooKeeper data directory size
+2. Clean up old snapshots and logs
+3. Configure autopurge in zoo.cfg:
+   ```
+   autopurge.snapRetainCount=3
+   autopurge.purgeInterval=1
+   ```
+4. Increase disk capacity for ZooKeeper
+
+#### Problem: Disk I/O Performance Issues
+**Symptoms:**
+- High write latency
+- Slow message throughput
+- BookKeeper write delays
+
+**Possible Causes:**
+1. Disk I/O bottleneck
+2. Competing disk usage (logs + data on same disk)
+3. Hardware degradation
+4. Filesystem issues
+
+**Solutions:**
+1. Monitor disk I/O: `iostat -x 1`
+2. Separate log and data directories
+3. Use dedicated disks for BookKeeper journals
+4. Check disk health: `smartctl -a /dev/sda`
+5. Consider SSD for journal directories
+6. Review mount options (noatime, nodiratime)
+
+---
+
+### Disk Monitoring Best Practices
+
+#### Key Metrics to Monitor
+1. **Disk Usage Percentage**
+   - Alert at 80% usage
+   - Critical at 90% usage
+   - BookKeeper read-only at 95%
+
+2. **Disk I/O Latency**
+   - Monitor with `iostat` or Prometheus metrics
+   - Alert if write latency > 10ms sustained
+
+3. **Inode Usage**
+   - Check with `df -i`
+   - Can run out of inodes before space
+
+4. **File Descriptor Usage**
+   - Monitor with `lsof | wc -l`
+   - Should be below ulimit
+
+#### Recommended Thresholds
+
+```properties
+# broker.conf
+bookkeeperLedgerPath=/data/bookkeeper/ledgers
+managedLedgerDefaultRetentionTime=7d
+managedLedgerDefaultRetentionSizeInMB=0  # unlimited, use time-based
+
+# bookkeeper.conf
+diskUsageThreshold=0.90
+diskUsageWarnThreshold=0.95
+journalSyncData=true
+journalMaxGroupWaitMSec=1
+
+# zoo.cfg
+autopurge.snapRetainCount=3
+autopurge.purgeInterval=1
+```
+
+---
+
 ### Memory and Resource Issues
 
 #### Problem: OutOfMemoryError

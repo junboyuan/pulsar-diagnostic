@@ -251,6 +251,203 @@ public class DiagnosticTool {
     }
 
     /**
+     * Diagnose disk space issues on Pulsar components
+     * @param component Component to check: 'broker', 'bookie', 'zookeeper', or 'all' (default: all)
+     */
+    @Tool(description = "Diagnose disk space issues on Pulsar components (broker, bookie, zookeeper). Input: component type or 'all' for comprehensive check")
+    public String diagnoseDiskIssues(@ToolParam(description = "Component to check: 'broker', 'bookie', 'zookeeper', or 'all'", required = false) String component) {
+        log.info("Tool: Diagnosing disk issues for: {}", component != null ? component : "all");
+
+        try {
+            List<DiagnosticResult> results = new ArrayList<>();
+
+            // Check via MCP for comprehensive disk info
+            try {
+                String mcpResult = mcpClient.callToolSync("check_disk_space",
+                        Map.of("component", component != null ? component : "all"));
+                return formatMcpDiskResult(mcpResult);
+            } catch (Exception e) {
+                log.debug("MCP disk check not available, using local checks");
+            }
+
+            // Fallback: Check cluster health for disk-related issues
+            ClusterHealth health = healthCheckService.performHealthCheck();
+
+            for (ComponentHealth comp : health.getComponents()) {
+                String compType = comp.getType().getCode();
+
+                // Filter by requested component
+                if (component != null && !"all".equals(component) && !compType.contains(component.toLowerCase())) {
+                    continue;
+                }
+
+                // Check for disk-related issues
+                if (comp.getMessage() != null && isDiskRelatedIssue(comp.getMessage())) {
+                    results.add(DiagnosticResult.builder()
+                            .type(DiagnosticType.RESOURCE)
+                            .severity(determineDiskSeverity(comp.getMessage()))
+                            .title("Disk Issue Detected on " + comp.getType().getDisplayName())
+                            .description(String.format("%s '%s': %s",
+                                    comp.getType().getDisplayName(), comp.getId(), comp.getMessage()))
+                            .affectedResource(comp.getId())
+                            .symptoms(getDiskSymptoms(comp.getMessage()))
+                            .possibleCauses(List.of(
+                                    "Disk space exhaustion",
+                                    "Disk I/O performance degradation",
+                                    "Disk quota limits reached",
+                                    "Log files accumulating",
+                                    "Ledger/index files growing"))
+                            .recommendations(getDiskRecommendations(comp.getMessage()))
+                            .build());
+                }
+
+                // Check bookie read-only status (often disk-related)
+                if ("bookie".equals(compType) && comp.getStatus() == HealthStatus.WARNING) {
+                    results.add(DiagnosticResult.builder()
+                            .type(DiagnosticType.RESOURCE)
+                            .severity(Severity.HIGH)
+                            .title("Bookie May Be in Read-Only Mode")
+                            .description(String.format("Bookie '%s' is in warning state, possibly read-only due to disk threshold", comp.getId()))
+                            .affectedResource(comp.getId())
+                            .symptoms(List.of("Write operations failing", "Bookie marked read-only"))
+                            .possibleCauses(List.of(
+                                    "Disk usage exceeded threshold (default 90%)",
+                                    "Disk I/O errors detected",
+                                    "Insufficient disk space for ledger creation"))
+                            .recommendations(List.of(
+                                    "Check disk usage: df -h",
+                                    "Free up disk space or expand storage",
+                                    "Review bookie diskUsageThreshold setting",
+                                    "Consider compacting ledgers",
+                                    "Clean up old ledger files"))
+                            .build());
+                }
+            }
+
+            // Check logs for disk errors
+            try {
+                var logResult = logAnalysisService.analyzeBrokerLogs(500);
+                for (var pattern : logResult.getDetectedPatterns()) {
+                    if (isDiskRelatedLog(pattern.getDescription())) {
+                        results.add(DiagnosticResult.builder()
+                                .type(DiagnosticType.RESOURCE)
+                                .severity(Severity.HIGH)
+                                .title("Disk Error in Broker Logs")
+                                .description(String.format("Pattern found %d times: %s",
+                                        pattern.getCount(), pattern.getDescription()))
+                                .possibleCauses(List.of("Disk I/O failure", "Disk full", "File system errors"))
+                                .recommendations(List.of(
+                                        "Check disk health: dmesg | grep -i error",
+                                        "Run disk diagnostics: smartctl",
+                                        "Review file system status: df -h",
+                                        "Consider disk replacement if hardware issue"))
+                                .build());
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Could not analyze logs for disk issues");
+            }
+
+            return formatDiagnosticResults(results, "Disk Diagnosis");
+
+        } catch (Exception e) {
+            log.error("Error diagnosing disk issues", e);
+            return "Error diagnosing disk issues: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Check if a message is related to disk issues
+     */
+    private boolean isDiskRelatedIssue(String message) {
+        if (message == null) return false;
+        String lower = message.toLowerCase();
+        return lower.contains("disk") ||
+               lower.contains("no space") ||
+               lower.contains("disk full") ||
+               lower.contains("read-only") ||
+               lower.contains("storage") ||
+               lower.contains("quota") ||
+               lower.contains("i/o error") ||
+               lower.contains("enospc");
+    }
+
+    /**
+     * Determine severity based on disk issue message
+     */
+    private Severity determineDiskSeverity(String message) {
+        if (message == null) return Severity.MEDIUM;
+        String lower = message.toLowerCase();
+        if (lower.contains("critical") || lower.contains("full") || lower.contains("no space")) {
+            return Severity.CRITICAL;
+        }
+        if (lower.contains("read-only") || lower.contains("warning")) {
+            return Severity.HIGH;
+        }
+        return Severity.MEDIUM;
+    }
+
+    /**
+     * Get disk-related symptoms
+     */
+    private List<String> getDiskSymptoms(String message) {
+        List<String> symptoms = new ArrayList<>();
+        symptoms.add("Disk space alert triggered");
+        if (message != null && message.toLowerCase().contains("read-only")) {
+            symptoms.add("Component in read-only mode");
+        }
+        symptoms.add("Write operations may fail");
+        return symptoms;
+    }
+
+    /**
+     * Get disk-related recommendations
+     */
+    private List<String> getDiskRecommendations(String message) {
+        List<String> recommendations = new ArrayList<>();
+        recommendations.add("Check disk usage: df -h");
+        recommendations.add("Clean up old logs and ledger files");
+        recommendations.add("Review retention policies");
+        recommendations.add("Expand storage if needed");
+        if (message != null && message.toLowerCase().contains("bookie")) {
+            recommendations.add("Check bookie diskUsageThreshold setting");
+            recommendations.add("Run bookie recovery if needed");
+        }
+        return recommendations;
+    }
+
+    /**
+     * Check if log pattern is disk-related
+     */
+    private boolean isDiskRelatedLog(String pattern) {
+        if (pattern == null) return false;
+        String lower = pattern.toLowerCase();
+        return lower.contains("disk") ||
+               lower.contains("enospc") ||
+               lower.contains("no space") ||
+               lower.contains("i/o error") ||
+               lower.contains("read only") ||
+               lower.contains("filesystem");
+    }
+
+    /**
+     * Format MCP disk result
+     */
+    private String formatMcpDiskResult(String mcpResult) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== Disk Space Diagnosis ===\n\n");
+        sb.append(mcpResult);
+        sb.append("\n\n---\n");
+        sb.append("**Recommendations:**\n");
+        sb.append("- Monitor disk usage regularly: df -h\n");
+        sb.append("- Set up disk usage alerts (e.g., at 80% threshold)\n");
+        sb.append("- Review log retention policies\n");
+        sb.append("- Consider log rotation and cleanup scripts\n");
+        sb.append("- For BookKeeper: check diskUsageThreshold and diskUsageWarnThreshold\n");
+        return sb.toString();
+    }
+
+    /**
      * Run comprehensive diagnostic on the entire cluster
      */
     @Tool(description = "Run a comprehensive diagnostic on the entire cluster. No input required.")

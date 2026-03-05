@@ -41,7 +41,8 @@ public class IntentRecognizer {
             "performance-analysis", new String[]{"性能", "吞吐量", "延迟", "慢", "优化", "performance", "性能分析", "瓶颈"},
             "connectivity-troubleshoot", new String[]{"连接", "网络", "认证", "超时", "connect", "连接失败", "网络问题"},
             "capacity-planning", new String[]{"容量", "扩容", "规划", "资源", "capacity", "容量规划", "扩容建议"},
-            "topic-consultation", new String[]{"主题", "分区", "保留", "配置", "topic", "主题设计", "分区策略"}
+            "topic-consultation", new String[]{"主题", "分区", "保留", "配置", "topic", "主题设计", "分区策略"},
+            "disk-diagnosis", new String[]{"磁盘", "disk", "空间", "满", "存储", "storage", "容量不足", "no space", "磁盘满", "读写", "io错误"}
     );
 
     // 意图到 MCP 工具的映射
@@ -51,7 +52,8 @@ public class IntentRecognizer {
             "performance-analysis", new String[]{"get_broker_metrics", "get_topic_metrics"},
             "connectivity-troubleshoot", new String[]{"check_connectivity", "get_connection_stats"},
             "capacity-planning", new String[]{"get_cluster_metrics", "get_resource_usage"},
-            "topic-consultation", new String[]{"get_topic_info", "list_topics"}
+            "topic-consultation", new String[]{"get_topic_info", "list_topics"},
+            "disk-diagnosis", new String[]{"check_disk_space", "inspect_cluster"}
     );
 
     // 需要 MCP 数据的关键词
@@ -67,6 +69,7 @@ public class IntentRecognizer {
             "connectivity-troubleshoot",
             "capacity-planning",
             "topic-consultation",
+            "disk-diagnosis",
             "general"
     );
 
@@ -218,7 +221,8 @@ public class IntentRecognizer {
         return "backlog-diagnosis".equals(intent) ||
                "cluster-health-check".equals(intent) ||
                "performance-analysis".equals(intent) ||
-               "connectivity-troubleshoot".equals(intent);
+               "connectivity-troubleshoot".equals(intent) ||
+               "disk-diagnosis".equals(intent);
     }
 
     /**
@@ -233,7 +237,8 @@ public class IntentRecognizer {
             // 诊断类问题需要混合模式
             if ("backlog-diagnosis".equals(intent) ||
                 "performance-analysis".equals(intent) ||
-                "connectivity-troubleshoot".equals(intent)) {
+                "connectivity-troubleshoot".equals(intent) ||
+                "disk-diagnosis".equals(intent)) {
                 return RouteType.HYBRID;
             }
             // 状态查询类只需要 MCP

@@ -473,3 +473,47 @@ mvn test
 2. **并行获取**: 知识和实时数据并行获取，提升响应速度
 3. **综合回答**: 结合知识库和实时集群数据生成回答
 4. **可扩展性**: 易于添加新的数据源和工具
+
+---
+
+## 磁盘诊断功能补充 (2026-03-05)
+
+### 新增功能
+
+在 `DiagnosticTool` 中添加了 `diagnoseDiskIssues` 方法，用于诊断 Pulsar 组件的磁盘空间问题。
+
+### 实现细节
+
+1. **新增意图类型**: `disk-diagnosis`
+   - 关键词: 磁盘, disk, 空间, 满, 存储, storage, 容量不足, no space, 磁盘满, 读写, io错误
+   - MCP 工具: check_disk_space, inspect_cluster, get_resource_usage
+   - 路由类型: HYBRID (混合知识库和实时数据)
+
+2. **诊断逻辑**:
+   - 优先通过 MCP 获取磁盘信息
+   - 回退检查集群健康状态中的磁盘相关问题
+   - 检查 Bookie 只读状态（通常是磁盘阈值导致）
+   - 分析日志中的磁盘错误
+
+3. **知识库更新**:
+   - 添加磁盘满问题诊断指南
+   - 添加 BookKeeper 磁盘配置
+   - 添加磁盘监控最佳实践
+
+### 文件变更
+
+| 文件 | 变更 |
+|------|------|
+| `DiagnosticTool.java` | 新增 `diagnoseDiskIssues` 方法 |
+| `IntentRecognizer.java` | 添加 `disk-diagnosis` 意图 |
+| `McpDataService.java` | 添加磁盘诊断工具映射 |
+| `ResponseOrchestrator.java` | 添加磁盘诊断显示名称 |
+| `troubleshooting.md` | 添加磁盘诊断知识 |
+
+### 测试结果
+
+```
+mvn test
+Tests run: 11, Failures: 0, Errors: 0
+BUILD SUCCESS
+```

@@ -33,7 +33,8 @@ public class McpDataService {
             "performance-analysis", new String[]{"get_broker_metrics", "get_topic_metrics", "get_cluster_metrics"},
             "connectivity-troubleshoot", new String[]{"check_connectivity", "get_connection_stats", "list_brokers"},
             "capacity-planning", new String[]{"get_cluster_metrics", "get_resource_usage", "list_brokers"},
-            "topic-consultation", new String[]{"get_topic_info", "list_topics", "get_topic_config"}
+            "topic-consultation", new String[]{"get_topic_info", "list_topics", "get_topic_config"},
+            "disk-diagnosis", new String[]{"check_disk_space", "inspect_cluster", "get_resource_usage"}
     );
 
     private final McpToolRegistry mcpToolRegistry;

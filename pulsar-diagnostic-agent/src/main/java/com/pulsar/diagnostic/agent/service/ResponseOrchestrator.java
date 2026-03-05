@@ -363,6 +363,7 @@ public class ResponseOrchestrator {
             case "connectivity-troubleshoot" -> "连接故障排查";
             case "capacity-planning" -> "容量规划";
             case "topic-consultation" -> "主题咨询";
+            case "disk-diagnosis" -> "磁盘诊断";
             default -> "通用";
         };
     }
