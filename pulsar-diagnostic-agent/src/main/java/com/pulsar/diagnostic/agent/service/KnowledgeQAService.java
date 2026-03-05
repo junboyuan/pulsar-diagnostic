@@ -4,10 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pulsar.diagnostic.agent.dto.QAResponse;
 import com.pulsar.diagnostic.agent.prompt.PromptTemplates;
-import com.pulsar.diagnostic.knowledge.KnowledgeBaseService;
+import com.pulsar.diagnostic.knowledge.rag.RAGConfig;
+import com.pulsar.diagnostic.knowledge.rag.RAGResponse;
+import com.pulsar.diagnostic.knowledge.rag.RAGService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,7 +20,7 @@ import java.util.regex.Pattern;
 /**
  * 知识问答服务
  *
- * 专门处理基于知识库的问答，使用结构化输出
+ * 专门处理基于知识库的问答，使用 RAG（检索增强生成）能力
  */
 @Service
 public class KnowledgeQAService {
@@ -30,15 +33,18 @@ public class KnowledgeQAService {
     );
 
     private final ChatClient chatClient;
-    private final KnowledgeBaseService knowledgeBaseService;
+    private final RAGService ragService;
     private final PromptTemplates promptTemplates;
     private final ObjectMapper objectMapper;
 
+    @Value("${pulsar-diagnostic.rag.enabled:true}")
+    private boolean ragEnabled = true;
+
     public KnowledgeQAService(ChatClient chatClient,
-                              KnowledgeBaseService knowledgeBaseService,
+                              RAGService ragService,
                               PromptTemplates promptTemplates) {
         this.chatClient = chatClient;
-        this.knowledgeBaseService = knowledgeBaseService;
+        this.ragService = ragService;
         this.promptTemplates = promptTemplates;
         this.objectMapper = new ObjectMapper();
     }
@@ -54,8 +60,8 @@ public class KnowledgeQAService {
         log.info("处理知识问答: {}", truncate(userMessage, 50));
 
         try {
-            // 1. 检索相关知识
-            String knowledgeContext = retrieveKnowledge(userMessage);
+            // 1. 使用 RAG 检索相关知识
+            String knowledgeContext = retrieveKnowledgeWithRAG(userMessage);
             log.debug("检索到知识上下文长度: {}", knowledgeContext != null ? knowledgeContext.length() : 0);
 
             // 2. 构建历史上下文
@@ -63,7 +69,9 @@ public class KnowledgeQAService {
 
             // 3. 生成提示词
             String prompt = promptTemplates.generateQAPrompt(
-                    knowledgeContext != null ? knowledgeContext : "暂无相关知识库内容",
+                    knowledgeContext != null && !knowledgeContext.isEmpty()
+                            ? knowledgeContext
+                            : "暂无相关知识库内容",
                     historyContext,
                     userMessage
             );
@@ -96,22 +104,30 @@ public class KnowledgeQAService {
     }
 
     /**
-     * 检索相关知识
+     * 使用 RAG 服务检索知识
      */
-    private String retrieveKnowledge(String query) {
-        if (!knowledgeBaseService.isReady()) {
-            log.debug("知识库未就绪");
+    private String retrieveKnowledgeWithRAG(String query) {
+        if (!ragEnabled || !ragService.isReady()) {
+            log.debug("RAG 服务未启用或未就绪");
             return null;
         }
 
         try {
-            var context = knowledgeBaseService.searchWithContext(query, 5);
-            if (context.items().isEmpty()) {
+            RAGResponse ragResponse = ragService.retrieve(query, RAGConfig.defaultConfig());
+
+            if (!ragResponse.hasResults()) {
+                log.debug("RAG 检索无结果");
                 return null;
             }
-            return context.context();
+
+            log.debug("RAG 检索完成: candidates={}, totalTime={}ms",
+                    ragResponse.resultCount(),
+                    ragResponse.metadata().totalTimeMs());
+
+            return ragResponse.context();
+
         } catch (Exception e) {
-            log.debug("知识检索失败: {}", e.getMessage());
+            log.debug("RAG 检索失败: {}", e.getMessage());
             return null;
         }
     }

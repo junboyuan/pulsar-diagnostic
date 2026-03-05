@@ -2,6 +2,7 @@ package com.pulsar.diagnostic.knowledge;
 
 import com.pulsar.diagnostic.knowledge.document.DocumentLoader;
 import com.pulsar.diagnostic.knowledge.loader.KnowledgeLoader;
+import com.pulsar.diagnostic.knowledge.retrieval.BM25Retriever;
 import com.pulsar.diagnostic.knowledge.store.KnowledgeVectorStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ public class KnowledgeBaseService {
 
     private final KnowledgeLoader knowledgeLoader;
     private final KnowledgeVectorStore vectorStore;
+    private final BM25Retriever bm25Retriever;
 
     @Value("${pulsar-diagnostic.knowledge.embedding-file:#{null}}")
     private String embeddingFilePath;
@@ -35,9 +37,11 @@ public class KnowledgeBaseService {
     private boolean initialized = false;
 
     public KnowledgeBaseService(KnowledgeLoader knowledgeLoader,
-                                KnowledgeVectorStore vectorStore) {
+                                KnowledgeVectorStore vectorStore,
+                                BM25Retriever bm25Retriever) {
         this.knowledgeLoader = knowledgeLoader;
         this.vectorStore = vectorStore;
+        this.bm25Retriever = bm25Retriever;
     }
 
     /**
@@ -70,7 +74,12 @@ public class KnowledgeBaseService {
             List<Document> documents = knowledgeLoader.loadAllKnowledge();
 
             if (!documents.isEmpty()) {
+                // Add to vector store
                 vectorStore.addDocuments(documents);
+
+                // Add to BM25 index for hybrid retrieval
+                bm25Retriever.addDocuments(documents);
+
                 initialized = true;
 
                 // Save to file if path is configured
@@ -78,7 +87,7 @@ public class KnowledgeBaseService {
                     vectorStore.saveToFile(embeddingFilePath);
                 }
 
-                log.info("Knowledge base initialized with {} documents", documents.size());
+                log.info("Knowledge base initialized with {} documents (vector + BM25)", documents.size());
             }
         } catch (Exception e) {
             log.error("Failed to load knowledge base", e);
@@ -150,6 +159,7 @@ public class KnowledgeBaseService {
     public void addKnowledge(String id, String content, Map<String, Object> metadata) {
         Document document = new Document(id, content, metadata);
         vectorStore.addDocuments(List.of(document));
+        bm25Retriever.addDocuments(List.of(document));
     }
 
     /**
@@ -157,6 +167,7 @@ public class KnowledgeBaseService {
      */
     public void addKnowledgeBatch(List<Document> documents) {
         vectorStore.addDocuments(documents);
+        bm25Retriever.addDocuments(documents);
     }
 
     /**

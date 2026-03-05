@@ -43,6 +43,20 @@ pulsar-diagnostic:
   knowledge:
     embedding-file: ${KNOWLEDGE_EMBEDDING_FILE:}
     auto-load: true
+  rag:
+    enabled: ${RAG_ENABLED:true}
+    retrieval:
+      top-k: ${RAG_RETRIEVAL_TOP_K:20}
+      vector-weight: ${RAG_VECTOR_WEIGHT:0.6}
+      bm25-weight: ${RAG_BM25_WEIGHT:0.4}
+    rerank:
+      enabled: ${RAG_RERANK_ENABLED:true}
+      top-k: ${RAG_RERANK_TOP_K:5}
+      batch-size: ${RAG_RERANK_BATCH_SIZE:5}
+      timeout-seconds: ${RAG_RERANK_TIMEOUT:30}
+    query-enhancement:
+      enabled: ${RAG_QUERY_ENHANCE_ENABLED:true}
+      expansion-count: ${RAG_QUERY_EXPANSION_COUNT:3}
 
 management:
   endpoints:

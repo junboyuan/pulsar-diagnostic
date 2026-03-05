@@ -2,7 +2,12 @@ package com.pulsar.diagnostic.agent.service;
 
 import com.pulsar.diagnostic.agent.dto.QAResponse;
 import com.pulsar.diagnostic.agent.prompt.PromptTemplates;
-import com.pulsar.diagnostic.knowledge.KnowledgeBaseService;
+import com.pulsar.diagnostic.agent.rag.LLMQueryEnhancer;
+import com.pulsar.diagnostic.agent.rag.LLMReranker;
+import com.pulsar.diagnostic.knowledge.query.EnhancedQuery;
+import com.pulsar.diagnostic.knowledge.rag.RAGResponse;
+import com.pulsar.diagnostic.knowledge.rag.RAGService;
+import com.pulsar.diagnostic.knowledge.rerank.RerankResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,12 +15,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.document.Document;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 /**
@@ -34,10 +39,7 @@ class KnowledgeQAServiceTest {
     private ChatClient.CallResponseSpec callResponseSpec;
 
     @Mock
-    private KnowledgeBaseService knowledgeBaseService;
-
-    @Mock
-    private KnowledgeBaseService.KnowledgeContext knowledgeContext;
+    private RAGService ragService;
 
     private PromptTemplates promptTemplates;
     private KnowledgeQAService knowledgeQAService;
@@ -46,7 +48,7 @@ class KnowledgeQAServiceTest {
     void setUp() {
         promptTemplates = new PromptTemplates();
         promptTemplates.loadPrompts();
-        knowledgeQAService = new KnowledgeQAService(chatClient, knowledgeBaseService, promptTemplates);
+        knowledgeQAService = new KnowledgeQAService(chatClient, ragService, promptTemplates);
     }
 
     @Test
@@ -64,7 +66,7 @@ class KnowledgeQAServiceTest {
                 ```
                 """;
 
-        when(knowledgeBaseService.isReady()).thenReturn(false);
+        when(ragService.isReady()).thenReturn(false);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(callResponseSpec);
@@ -92,7 +94,7 @@ class KnowledgeQAServiceTest {
                 }
                 """;
 
-        when(knowledgeBaseService.isReady()).thenReturn(false);
+        when(ragService.isReady()).thenReturn(false);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(callResponseSpec);
@@ -107,7 +109,7 @@ class KnowledgeQAServiceTest {
     }
 
     @Test
-    @DisplayName("Should retrieve knowledge when knowledge base is ready")
+    @DisplayName("Should retrieve knowledge when RAG service is ready")
     void ask_shouldRetrieveKnowledgeWhenReady() {
         // Given
         String userMessage = "如何配置消息保留策略？";
@@ -120,13 +122,16 @@ class KnowledgeQAServiceTest {
                 }
                 """;
 
-        when(knowledgeBaseService.isReady()).thenReturn(true);
-        when(knowledgeBaseService.searchWithContext(any(String.class), anyInt()))
-                .thenReturn(knowledgeContext);
-        when(knowledgeContext.items()).thenReturn(List.of(
-                new KnowledgeBaseService.KnowledgeItem("1", knowledgeContent, null)
-        ));
-        when(knowledgeContext.context()).thenReturn(knowledgeContent);
+        RAGResponse ragResponse = new RAGResponse(
+                userMessage,
+                EnhancedQuery.original(userMessage),
+                List.of(RerankResult.of(new Document("1", knowledgeContent, java.util.Map.of()), 1.0, "相关", 0)),
+                knowledgeContent,
+                new RAGResponse.Metadata(10, 5, 15, 1, "hybrid")
+        );
+
+        when(ragService.isReady()).thenReturn(true);
+        when(ragService.retrieve(any(String.class), any())).thenReturn(ragResponse);
 
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
@@ -138,7 +143,7 @@ class KnowledgeQAServiceTest {
 
         // Then
         assertTrue(response.useful());
-        verify(knowledgeBaseService).searchWithContext(userMessage, 5);
+        verify(ragService).retrieve(eq(userMessage), any());
     }
 
     @Test
@@ -158,7 +163,7 @@ class KnowledgeQAServiceTest {
                 }
                 """;
 
-        when(knowledgeBaseService.isReady()).thenReturn(false);
+        when(ragService.isReady()).thenReturn(false);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(callResponseSpec);
@@ -179,7 +184,7 @@ class KnowledgeQAServiceTest {
         // Given
         String userMessage = "测试问题";
 
-        when(knowledgeBaseService.isReady()).thenReturn(false);
+        when(ragService.isReady()).thenReturn(false);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenThrow(new RuntimeException("LLM call failed"));
@@ -198,7 +203,7 @@ class KnowledgeQAServiceTest {
         // Given
         String userMessage = "测试问题";
 
-        when(knowledgeBaseService.isReady()).thenReturn(false);
+        when(ragService.isReady()).thenReturn(false);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(callResponseSpec);
@@ -218,7 +223,7 @@ class KnowledgeQAServiceTest {
         String userMessage = "测试问题";
         String llmResponse = "这是回复内容：{\"useful\": true, \"content\": \"测试回答\", \"translation\": \"test answer\"} 结束";
 
-        when(knowledgeBaseService.isReady()).thenReturn(false);
+        when(ragService.isReady()).thenReturn(false);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(callResponseSpec);
@@ -246,7 +251,7 @@ class KnowledgeQAServiceTest {
                 }
                 """;
 
-        when(knowledgeBaseService.isReady()).thenReturn(false);
+        when(ragService.isReady()).thenReturn(false);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(callResponseSpec);
@@ -267,7 +272,7 @@ class KnowledgeQAServiceTest {
         String userMessage = "测试问题";
         String llmResponse = "这是一段没有JSON格式的纯文本回复。";
 
-        when(knowledgeBaseService.isReady()).thenReturn(false);
+        when(ragService.isReady()).thenReturn(false);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(callResponseSpec);
@@ -289,7 +294,7 @@ class KnowledgeQAServiceTest {
         String userMessage = "测试问题";
         String llmResponse = "{\"useful\": true, \"content\": \"回答\", \"translation\": \"answer\"}";
 
-        when(knowledgeBaseService.isReady()).thenReturn(false);
+        when(ragService.isReady()).thenReturn(false);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(callResponseSpec);
@@ -303,15 +308,15 @@ class KnowledgeQAServiceTest {
     }
 
     @Test
-    @DisplayName("Should handle knowledge base retrieval failure gracefully")
-    void ask_shouldHandleKnowledgeRetrievalFailure() {
+    @DisplayName("Should handle RAG service failure gracefully")
+    void ask_shouldHandleRAGServiceFailure() {
         // Given
         String userMessage = "测试问题";
         String llmResponse = "{\"useful\": true, \"content\": \"回答\", \"translation\": \"answer\"}";
 
-        when(knowledgeBaseService.isReady()).thenReturn(true);
-        when(knowledgeBaseService.searchWithContext(any(), anyInt()))
-                .thenThrow(new RuntimeException("Knowledge retrieval failed"));
+        when(ragService.isReady()).thenReturn(true);
+        when(ragService.retrieve(any(), any()))
+                .thenThrow(new RuntimeException("RAG service failed"));
 
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
