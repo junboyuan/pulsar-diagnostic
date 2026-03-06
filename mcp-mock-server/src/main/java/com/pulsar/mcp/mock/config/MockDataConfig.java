@@ -1,6 +1,8 @@
 package com.pulsar.mcp.mock.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.HashMap;
@@ -12,6 +14,11 @@ import java.util.Map;
 @Configuration
 @ConfigurationProperties(prefix = "mock")
 public class MockDataConfig {
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
 
     /**
      * Scenario to simulate (normal, backlog, produce-slow, disk-full, auth-failure)
