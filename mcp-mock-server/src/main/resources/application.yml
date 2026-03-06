@@ -1,0 +1,33 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: mcp-mock-server
+
+# Mock data configuration
+mock:
+  # Scenario to simulate: normal, backlog, produce-slow, disk-full, auth-failure
+  scenario: normal
+  # Enable dynamic data changes
+  dynamic-data: true
+  # Update interval in seconds
+  update-interval-seconds: 5
+  # Custom parameters
+  parameters: {}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.pulsar.mcp.mock: DEBUG
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

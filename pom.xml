@@ -18,6 +18,7 @@
         <module>pulsar-diagnostic-knowledge</module>
         <module>pulsar-diagnostic-agent</module>
         <module>pulsar-diagnostic-web</module>
+        <module>mcp-mock-server</module>
     </modules>
 
     <properties>
