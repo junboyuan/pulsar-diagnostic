@@ -6,6 +6,7 @@ import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -16,63 +17,57 @@ import java.util.List;
 @Configuration
 public class ToolConfig {
 
-    // ==================== Cluster Status Tools ====================
-
+    /**
+     * Create a single bean containing all tool callbacks.
+     * Spring AI 2.0.0-M2 expects a single List<ToolCallback> bean.
+     */
     @Bean
-    public List<ToolCallback> clusterStatusTools(ClusterStatusTool clusterStatusTool) {
-        return Arrays.asList(MethodToolCallbackProvider.builder()
+    public List<ToolCallback> pulsarDiagnosticTools(
+            ClusterStatusTool clusterStatusTool,
+            TopicInfoTool topicInfoTool,
+            BrokerMetricsTool brokerMetricsTool,
+            LogAnalysisTool logAnalysisTool,
+            DiagnosticTool diagnosticTool,
+            InspectionTool inspectionTool) {
+
+        List<ToolCallback> allTools = new ArrayList<>();
+
+        // Cluster Status Tools
+        allTools.addAll(Arrays.asList(MethodToolCallbackProvider.builder()
                 .toolObjects(clusterStatusTool)
                 .build()
-                .getToolCallbacks());
-    }
+                .getToolCallbacks()));
 
-    // ==================== Topic Info Tools ====================
-
-    @Bean
-    public List<ToolCallback> topicInfoTools(TopicInfoTool topicInfoTool) {
-        return Arrays.asList(MethodToolCallbackProvider.builder()
+        // Topic Info Tools
+        allTools.addAll(Arrays.asList(MethodToolCallbackProvider.builder()
                 .toolObjects(topicInfoTool)
                 .build()
-                .getToolCallbacks());
-    }
+                .getToolCallbacks()));
 
-    // ==================== Metrics Tools ====================
-
-    @Bean
-    public List<ToolCallback> brokerMetricsTools(BrokerMetricsTool brokerMetricsTool) {
-        return Arrays.asList(MethodToolCallbackProvider.builder()
+        // Broker Metrics Tools
+        allTools.addAll(Arrays.asList(MethodToolCallbackProvider.builder()
                 .toolObjects(brokerMetricsTool)
                 .build()
-                .getToolCallbacks());
-    }
+                .getToolCallbacks()));
 
-    // ==================== Log Analysis Tools ====================
-
-    @Bean
-    public List<ToolCallback> logAnalysisTools(LogAnalysisTool logAnalysisTool) {
-        return Arrays.asList(MethodToolCallbackProvider.builder()
+        // Log Analysis Tools
+        allTools.addAll(Arrays.asList(MethodToolCallbackProvider.builder()
                 .toolObjects(logAnalysisTool)
                 .build()
-                .getToolCallbacks());
-    }
+                .getToolCallbacks()));
 
-    // ==================== Diagnostic Tools ====================
-
-    @Bean
-    public List<ToolCallback> diagnosticTools(DiagnosticTool diagnosticTool) {
-        return Arrays.asList(MethodToolCallbackProvider.builder()
+        // Diagnostic Tools
+        allTools.addAll(Arrays.asList(MethodToolCallbackProvider.builder()
                 .toolObjects(diagnosticTool)
                 .build()
-                .getToolCallbacks());
-    }
+                .getToolCallbacks()));
 
-    // ==================== Inspection Tools ====================
-
-    @Bean
-    public List<ToolCallback> inspectionTools(InspectionTool inspectionTool) {
-        return Arrays.asList(MethodToolCallbackProvider.builder()
+        // Inspection Tools
+        allTools.addAll(Arrays.asList(MethodToolCallbackProvider.builder()
                 .toolObjects(inspectionTool)
                 .build()
-                .getToolCallbacks());
+                .getToolCallbacks()));
+
+        return allTools;
     }
 }

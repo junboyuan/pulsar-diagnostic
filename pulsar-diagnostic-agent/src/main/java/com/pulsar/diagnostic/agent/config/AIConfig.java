@@ -16,6 +16,14 @@ import org.springframework.context.annotation.Configuration;
 public class AIConfig {
 
     /**
+     * Create ObjectMapper bean for JSON processing.
+     */
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
+
+    /**
      * Create ChatClient bean for conversational AI.
      * Tools from ToolConfig are automatically registered by Spring AI.
      */

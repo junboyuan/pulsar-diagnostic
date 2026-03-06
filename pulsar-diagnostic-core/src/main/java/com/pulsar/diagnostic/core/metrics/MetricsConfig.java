@@ -2,7 +2,7 @@ package com.pulsar.diagnostic.core.metrics;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
 
 /**
  * Configuration for metrics collection
@@ -10,14 +10,14 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Configuration
 public class MetricsConfig {
 
-    private final WebClient prometheusWebClient;
+    private final RestClient prometheusRestClient;
 
-    public MetricsConfig(WebClient prometheusWebClient) {
-        this.prometheusWebClient = prometheusWebClient;
+    public MetricsConfig(RestClient prometheusRestClient) {
+        this.prometheusRestClient = prometheusRestClient;
     }
 
     @Bean
     public PrometheusMetricsCollector prometheusMetricsCollector() {
-        return new PrometheusMetricsCollector(prometheusWebClient);
+        return new PrometheusMetricsCollector(prometheusRestClient);
     }
 }

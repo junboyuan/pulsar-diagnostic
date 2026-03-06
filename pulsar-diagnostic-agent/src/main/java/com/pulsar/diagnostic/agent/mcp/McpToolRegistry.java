@@ -35,7 +35,7 @@ public class McpToolRegistry {
      */
     public void refreshTools() {
         try {
-            List<McpClient.McpToolInfo> toolList = mcpClient.getAvailableTools().block();
+            List<McpClient.McpToolInfo> toolList = mcpClient.getAvailableTools();
             if (toolList != null) {
                 tools.clear();
                 for (McpClient.McpToolInfo tool : toolList) {

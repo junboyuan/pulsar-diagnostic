@@ -49,6 +49,12 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework</groupId>
+                    <artifactId>spring-webflux</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Validation -->

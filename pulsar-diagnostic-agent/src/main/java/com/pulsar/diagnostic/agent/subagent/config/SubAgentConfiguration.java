@@ -9,6 +9,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 import java.util.List;
 
@@ -24,7 +25,7 @@ public class SubAgentConfiguration implements ApplicationListener<ApplicationRea
     private final SubAgentRegistry subAgentRegistry;
     private final List<SubAgent> subAgents;
 
-    public SubAgentConfiguration(SubAgentRegistry subAgentRegistry, List<SubAgent> subAgents) {
+    public SubAgentConfiguration(SubAgentRegistry subAgentRegistry, @Lazy List<SubAgent> subAgents) {
         this.subAgentRegistry = subAgentRegistry;
         this.subAgents = subAgents;
     }

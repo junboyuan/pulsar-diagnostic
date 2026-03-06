@@ -6,9 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
-import reactor.util.retry.Retry;
+import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -25,15 +23,14 @@ public class McpClient {
     private static final Logger log = LoggerFactory.getLogger(McpClient.class);
 
     private final McpConfig config;
-    private final WebClient webClient;
+    private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
     public McpClient(McpConfig config, ObjectMapper objectMapper) {
         this.config = config;
         this.objectMapper = objectMapper;
-        this.webClient = WebClient.builder()
+        this.restClient = RestClient.builder()
                 .baseUrl(config.getServerUrl())
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
                 .build();
     }
 
@@ -45,8 +42,7 @@ public class McpClient {
             return false;
         }
         try {
-            String result = callTool("inspect_cluster", Map.of("components", List.of("brokers")))
-                    .block(Duration.ofSeconds(5));
+            String result = callToolSync("inspect_cluster", Map.of("components", List.of("brokers")));
             return result != null && !result.contains("Error");
         } catch (Exception e) {
             log.debug("MCP server not available: {}", e.getMessage());
@@ -59,11 +55,11 @@ public class McpClient {
      *
      * @param toolName  Name of the MCP tool to call
      * @param arguments Arguments to pass to the tool
-     * @return Mono containing the tool result as a string
+     * @return Tool result as a string
      */
-    public Mono<String> callTool(String toolName, Map<String, Object> arguments) {
+    public String callToolSync(String toolName, Map<String, Object> arguments) {
         if (!config.isEnabled()) {
-            return Mono.just("MCP integration is disabled");
+            return "MCP integration is disabled";
         }
 
         log.debug("Calling MCP tool: {} with arguments: {}", toolName, arguments);
@@ -71,46 +67,36 @@ public class McpClient {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("arguments", arguments != null ? arguments : Collections.emptyMap());
 
-        return webClient.post()
-                .uri("/api/tools/{toolName}", toolName)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(requestBody)
-                .retrieve()
-                .bodyToMono(String.class)
-                .timeout(config.getTimeout())
-                .retryWhen(Retry.backoff(config.getMaxRetries(), Duration.ofMillis(config.getRetryDelayMs()))
-                        .filter(throwable -> {
-                            log.warn("Retrying MCP call for {} due to: {}", toolName, throwable.getMessage());
-                            return true;
-                        }))
-                .map(this::parseToolResponse)
-                .onErrorResume(e -> {
-                    log.error("Failed to call MCP tool {}: {}", toolName, e.getMessage());
-                    return Mono.just(String.format("Error calling MCP tool %s: %s", toolName, e.getMessage()));
-                });
-    }
+        try {
+            String response = restClient.post()
+                    .uri("/api/tools/{toolName}", toolName)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
 
-    /**
-     * Call an MCP tool synchronously.
-     */
-    public String callToolSync(String toolName, Map<String, Object> arguments) {
-        return callTool(toolName, arguments).block(config.getTimeout());
+            return parseToolResponse(response);
+        } catch (Exception e) {
+            log.error("Failed to call MCP tool {}: {}", toolName, e.getMessage());
+            return String.format("Error calling MCP tool %s: %s", toolName, e.getMessage());
+        }
     }
 
     /**
      * Get list of available tools from MCP server.
      */
-    public Mono<List<McpToolInfo>> getAvailableTools() {
-        return webClient.get()
-                .uri("/api/tools")
-                .retrieve()
-                .bodyToMono(String.class)
-                .timeout(Duration.ofSeconds(10))
-                .map(this::parseToolsList)
-                .onErrorResume(e -> {
-                    log.error("Failed to get available tools: {}", e.getMessage());
-                    return Mono.just(Collections.emptyList());
-                });
+    public List<McpToolInfo> getAvailableTools() {
+        try {
+            String response = restClient.get()
+                    .uri("/api/tools")
+                    .retrieve()
+                    .body(String.class);
+
+            return parseToolsList(response);
+        } catch (Exception e) {
+            log.error("Failed to get available tools: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     private String parseToolResponse(String response) {

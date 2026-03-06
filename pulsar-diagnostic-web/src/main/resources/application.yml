@@ -6,6 +6,7 @@ spring:
     name: pulsar-diagnostic-agent
   main:
     allow-bean-definition-overriding: true
+    web-application-type: servlet
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.web.reactive.WebFluxAutoConfiguration
@@ -13,10 +14,11 @@ spring:
 
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:}
+      api-key: ${OPENAI_API_KEY}
+      base-url: ${OPENAI_BASE_URL}
       chat:
         options:
-          model: gpt-4
+          model: glm-5
           temperature: 0.7
       embedding:
         options:

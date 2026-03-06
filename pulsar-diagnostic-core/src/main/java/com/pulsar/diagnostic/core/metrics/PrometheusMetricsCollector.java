@@ -8,11 +8,9 @@ import io.micrometer.core.annotation.Timed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
-import reactor.core.publisher.Mono;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
-import java.time.Duration;
 import java.util.*;
 
 /**
@@ -22,7 +20,7 @@ public class PrometheusMetricsCollector {
 
     private static final Logger log = LoggerFactory.getLogger(PrometheusMetricsCollector.class);
 
-    private final WebClient webClient;
+    private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
     // Key Pulsar metrics
@@ -41,8 +39,8 @@ public class PrometheusMetricsCollector {
             "pulsar_broker_msg_throughput_out"
     );
 
-    public PrometheusMetricsCollector(WebClient webClient) {
-        this.webClient = webClient;
+    public PrometheusMetricsCollector(RestClient restClient) {
+        this.restClient = restClient;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -61,24 +59,19 @@ public class PrometheusMetricsCollector {
         try {
             log.debug("Querying Prometheus metric: {}", query);
 
-            String path = "/api/v1/query";
-            WebClient.RequestHeadersSpec<?> request = webClient.get()
-                    .uri(uriBuilder -> {
-                        uriBuilder.path(path).queryParam("query", query);
-                        if (timestamp != null) {
-                            uriBuilder.queryParam("time", timestamp);
-                        }
-                        return uriBuilder.build();
-                    });
+            String uri = "/api/v1/query?query=" + query;
+            if (timestamp != null) {
+                uri += "&time=" + timestamp;
+            }
 
-            String response = request.retrieve()
-                    .bodyToMono(String.class)
-                    .timeout(Duration.ofSeconds(30))
-                    .block();
+            String response = restClient.get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(String.class);
 
             return parsePrometheusResponse(response);
 
-        } catch (WebClientResponseException e) {
+        } catch (RestClientResponseException e) {
             log.error("Prometheus query failed: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             throw MetricsException.connectionFailed("Prometheus", e);
         } catch (Exception e) {
@@ -94,7 +87,7 @@ public class PrometheusMetricsCollector {
         try {
             log.debug("Querying Prometheus range: {} from {} to {}", query, start, end);
 
-            String response = webClient.get()
+            String response = restClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/api/v1/query_range")
                             .queryParam("query", query)
@@ -103,9 +96,7 @@ public class PrometheusMetricsCollector {
                             .queryParam("step", step)
                             .build())
                     .retrieve()
-                    .bodyToMono(String.class)
-                    .timeout(Duration.ofSeconds(60))
-                    .block();
+                    .body(String.class);
 
             return parseRangeResponse(response);
 
@@ -222,12 +213,10 @@ public class PrometheusMetricsCollector {
      */
     public boolean isAvailable() {
         try {
-            String response = webClient.get()
+            String response = restClient.get()
                     .uri("/api/v1/query?query=up")
                     .retrieve()
-                    .bodyToMono(String.class)
-                    .timeout(Duration.ofSeconds(5))
-                    .block();
+                    .body(String.class);
 
             return response != null && response.contains("\"success\"");
         } catch (Exception e) {

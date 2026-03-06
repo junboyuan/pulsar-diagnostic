@@ -26,7 +26,7 @@ public class BM25Retriever implements DocumentRetriever {
 
     // 中文分词正则：按标点和空白分割
     private static final Pattern CHINESE_TOKENIZER = Pattern.compile(
-            "[\\s\\p{Punct}\\p{Punctuation}]+|(?<=[\\u4e00-\\u9fa5])(?=[A-Za-z0-9])|(?<=[A-Za-z0-9])(?=[\\u4e00-\\u9fa5])"
+            "[\\s\\p{Punct}]+|(?<=[\\u4e00-\\u9fa5])(?=[A-Za-z0-9])|(?<=[A-Za-z0-9])(?=[\\u4e00-\\u9fa5])"
     );
 
     // 文档存储

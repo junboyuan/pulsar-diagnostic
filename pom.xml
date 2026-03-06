@@ -28,7 +28,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <!-- Spring Boot -->
-        <spring-boot.version>3.4.2</spring-boot.version>
+        <spring-boot.version>4.0.1</spring-boot.version>
 
         <!-- Spring AI -->
         <spring-ai.version>2.0.0-M2</spring-ai.version>
