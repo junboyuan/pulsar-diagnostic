@@ -1,0 +1,15 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: mcp-mock-server-test
+
+mock:
+  scenario: normal
+  dynamic-data: false
+
+logging:
+  level:
+    root: WARN
+    com.pulsar.mcp.mock: DEBUG
